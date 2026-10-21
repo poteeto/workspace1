@@ -60,7 +60,16 @@ final class RuntimeExecution {
       try {
         return launcher.preflight(selected.runtime, false);
       } catch (IOException failure) {
-        throw new IllegalStateException("RUNTIME_CAPABILITY_UNCONFIRMED", failure);
+        // Preserve the precise failed qualification step for native maintenance
+        // diagnostics. Previously users saw only RUNTIME_CAPABILITY_UNCONFIRMED
+        // and could not distinguish an unsafe fingerprint, process timeout,
+        // guest syscall rejection, or an incomplete package overlay.
+        String why = SensitiveData.redact(
+            String.valueOf(failure.getMessage() == null
+                ? failure.getClass().getSimpleName() : failure.getMessage()));
+        if (why.length() > 320) why = why.substring(0, 320);
+        ports.record("RUNTIME_CAPABILITY_UNCONFIRMED", why);
+        throw new IllegalStateException("RUNTIME_CAPABILITY_UNCONFIRMED: " + why, failure);
       }
     }
     return selected.runtime;
