@@ -161,6 +161,24 @@ public class ColdInstallPlanTest {
   }
 
   @Test
+  public void prootCompatibilityProbeKeepsPackageChecksWithoutBxrootSyscallConstraint() {
+    String bxroot = ColdInstallPlan.probeScript(ColdInstallPlan.Mode.BXROOT);
+    assertTrue(bxroot.contains("DSHA_ENGINE_PROBE_STAGE=STATX_BEGIN"));
+    assertTrue(bxroot.contains("DSHA_ENGINE_PROBE_STAGE=EXECVEAT_CHILD"));
+    String proot = ColdInstallPlan.probeScript(ColdInstallPlan.Mode.PROOT);
+    assertFalse(proot.contains("DSHA_ENGINE_PROBE_STAGE=STATX_BEGIN"));
+    assertFalse(proot.contains("DSHA_ENGINE_PROBE_STAGE=EXECVEAT_CHILD"));
+    assertTrue(proot.contains("DSHA_ENGINE_PACKAGE_CAPABILITY_READY"));
+    assertTrue(proot.contains(ColdInstallPlan.PROBE_READY));
+    assertEquals(proot, ColdInstallPlan.probeScript(ColdInstallPlan.Mode.PROOT_COMPAT));
+    String name = "/root/.dsha-cold-probe-12345678-1234-1234-1234-1234567890ab";
+    assertTrue(ColdInstallPlan.probeCommand(name, ColdInstallPlan.Mode.PROOT)
+        .contains("DSHA_ENGINE_PACKAGE_CAPABILITY_READY"));
+    assertThrows(IllegalArgumentException.class,
+        () -> ColdInstallPlan.probeCommand(name, ColdInstallPlan.Mode.PROROOT));
+  }
+
+  @Test
   public void failedPreferenceCommitCannotPublishReady() {
     List<String> calls = new ArrayList<>();
     assertThrows(
