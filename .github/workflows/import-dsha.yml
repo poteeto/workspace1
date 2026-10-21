@@ -16,12 +16,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - name: Checkout private project
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Import pinned upstream Git history
+      - name: Merge pinned DSHA upstream without overwriting existing project controls
         shell: bash
         run: |
           set -euo pipefail
@@ -32,8 +30,11 @@ jobs:
           upstream=891405e006da2316ff593cb4a74485de6c1d7b19
           git cat-file -e "${upstream}^{commit}"
           if git merge-base --is-ancestor "$upstream" HEAD; then
-            echo "The pinned upstream commit is already present."
+            echo "Pinned upstream is already in history"
             exit 0
           fi
-          git merge --allow-unrelated-histories --no-ff --no-edit "$upstream" -m "Import DSHA upstream at $upstream"
+          git merge --allow-unrelated-histories --no-ff -s ours \
+            -m "Track DSHA upstream commit $upstream" "$upstream"
+          git checkout "$upstream" -- .
+          git commit -m "Import DSHA source snapshot ($upstream)"
           git push origin HEAD:main
