@@ -1,0 +1,24 @@
+name: DSH runtime host compatibility audit
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths:
+      - .github/workflows/audit-runtime-host.yml
+      - tools/audit-runtime-postinstall.py
+      - app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java
+      - app/src/main/assets/runtime-patches.json
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - name: Install exact DSH linux-arm64 package graph
+        working-directory: tools/dsh-runtime
+        run: npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund
+      - name: Compare published settings runtime against Java patch anchors
+        run: python3 tools/audit-runtime-postinstall.py
