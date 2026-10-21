@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "dshVersion": "0.2.0-rc.2",
+  "dshVersion": "0.2.1-rc.2",
   "active": [
     {
       "asset": "composer-enter-patch.json",
@@ -30,9 +30,6 @@
       "asset": "plugin-manager-policy-patch.json"
     },
     {
-      "asset": "plugin-manager-auto-enable-patch.json"
-    },
-    {
       "asset": "office-fonts-patch.json"
     },
     {
@@ -43,15 +40,6 @@
     },
     {
       "asset": "language-patch.json"
-    },
-    {
-      "asset": "tooltip-interaction-patch.json",
-      "markers": [
-        "DSHA_TOOLTIP_DISMISS_RC2_V1"
-      ]
-    },
-    {
-      "asset": "tooltip-entry-patch.json"
     },
     {
       "asset": "frontend-static-cache-patch.json",
@@ -124,6 +112,18 @@
     {
       "asset": "web-integration/tooltip-patch.json",
       "reason": "Old 0.1.5 component replacement preserved as history. Current rc2 interaction/entry recipes retain the upstream Tooltip and add dismissal only."
+    },
+    {
+      "asset": "plugin-manager-auto-enable-patch.json",
+      "reason": "Upstream 0.2.1-rc.2 changed installBundle to respect subject.selection; retain secure disabled-by-default behavior instead of auto-enabling unreviewed plugins."
+    },
+    {
+      "asset": "tooltip-interaction-patch.json",
+      "reason": "Upstream frontend bundle name and minified Tooltip implementation changed; obsolete JS injection must not be applied without requalification."
+    },
+    {
+      "asset": "tooltip-entry-patch.json",
+      "reason": "Previous JS entry cache-buster targets removed hashed bundle; retired with the obsolete tooltip injection."
     }
   ]
 }
