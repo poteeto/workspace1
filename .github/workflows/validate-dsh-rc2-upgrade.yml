@@ -1,0 +1,78 @@
+name: Validate DSH 0.2.1-rc.2 upgrade
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths:
+      - .github/workflows/validate-dsh-rc2-upgrade.yml
+      - tools/dsh-runtime/package.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  resolve-and-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+      - name: Regenerate exact npm dependency lock for the pinned release
+        working-directory: tools/dsh-runtime
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Commit lockfile changes into upgrade branch
+        run: |
+          set -euo pipefail
+          git add tools/dsh-runtime/package-lock.json
+          if git diff --cached --quiet; then
+            echo 'Lockfile already matches.'
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Lock DSH 0.2.1-rc.2 dependency graph"
+            git push origin HEAD:upgrade/dsh-0.2.1-rc.2
+          fi
+      - name: Install release dependencies without running third-party scripts
+        working-directory: tools/dsh-runtime
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Probe DSHA's pinned Android compatibility anchors
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('.')
+          pkgs = root / 'tools/dsh-runtime/node_modules'
+          anchors = {
+            'rc1-settings-migration-patch.json': 'dsh-settings/lib/index.js',
+            'workspace-directory-policy-patch.json': 'dsh-api-workspace-controller/lib/index.js',
+            'client-combo-patch.json': 'dsh-client-modules/lib/index.js',
+            'deepseek-messages-compat-patch.json': 'dsh-llm-deepseek/lib/index.js',
+            'lexical-claim-patch.json': 'dsh-client-ui-conversation/lib/client.js',
+            'conversation-materialized-patch.json': 'dsh-client-ui-conversation/lib/client.js'
+          }
+          reports = []
+          for name, module in anchors.items():
+            path = root / 'app/src/main/assets' / name
+            recipe = json.loads(path.read_text(encoding='utf-8'))
+            target = pkgs / '@deepseek-ai' / module
+            if not target.exists():
+              reports.append((name, 'MODULE_MISSING', str(target)))
+              continue
+            source = target.read_text(encoding='utf-8')
+            missing = sum(source.count(patch.get('before','')) != 1
+                          for patch in recipe.get('patches', []))
+            reports.append((name, 'ANCHOR_OK' if not missing else 'ANCHOR_CHANGED', str(missing)))
+          for n,status,detail in reports:
+            print(f'{status:16} {n}: {detail}')
+          broken = [n for n,status,_ in reports if status!='ANCHOR_OK']
+          with open('/tmp/dsha-compat-results.txt','w') as f:
+            f.write('\n'.join(f'{n}: {status} ({detail})' for n,status,detail in reports))
+          if broken:
+            raise SystemExit('Existing version-specific Android patches need porting: ' + ', '.join(broken))
+          PY
