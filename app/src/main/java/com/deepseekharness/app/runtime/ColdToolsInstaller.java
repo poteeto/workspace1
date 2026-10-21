@@ -70,7 +70,7 @@ final class ColdToolsInstaller {
                   command = com.deepseekharness.app.util.ColdInstallPlan.installCommand(guest);
                 }
                 try {
-                  var result = collectColdCommand(boot, mode, command, probe ? 45_000 : 180_000);
+                  var result = collectColdCommand(boot, mode, command, probe ? 60_000 : 180_000);
                   return new com.deepseekharness.app.util.ColdInstallPlan.Observation(
                       result.exitCode,
                       result.timedOut,
@@ -156,7 +156,7 @@ final class ColdToolsInstaller {
                     com.deepseekharness.app.util.ColdInstallPlan.probeCommand(
                             "/root/.dsha-cold-probe-" + java.util.UUID.randomUUID())
                         + " && printf '\\nDSHA_UBUNTU_TOOLS_READY\\n'";
-                var result = collectColdCommand(boot, mode, command, 30_000);
+                var result = collectColdCommand(boot, mode, command, 60_000);
                 return new com.deepseekharness.app.util.ColdInstallPlan.Observation(
                     result.exitCode,
                     result.timedOut,
