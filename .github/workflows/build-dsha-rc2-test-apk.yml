@@ -50,8 +50,6 @@ jobs:
         shell: bash
         working-directory: tools/dsh-runtime
         run: npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund
-      - name: Gate release on entire Android runtime postinstall patch simulation
-        run: python3 tools/verify-runtime-installation.py
       - name: Materialize DSH 0.2.1-rc.2 immutable offline runtime
         run: |
           python3 tools/audit-dsh-patches.py
@@ -66,6 +64,8 @@ jobs:
           python3 tools/generate-third-party-notices.py
           python3 tools/prepare-runtime-descriptor.py --write
           python3 tools/prepare-runtime-descriptor.py --check
+      - name: Gate release on entire Android runtime postinstall patch simulation
+        run: python3 tools/verify-runtime-installation.py
       - name: Enforce Android and DSH patch registry version alignment
         run: |
           python3 - <<'PY'
