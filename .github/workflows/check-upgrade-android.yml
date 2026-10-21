@@ -49,3 +49,9 @@ jobs:
             -x :app:prepareStandardAssets -x :app:prepareRecoveryAssets \
             -x :app:verifyBxrootNative -x :app:verifyBxrootProjection \
             --no-daemon --max-workers=2
+      - name: Display test failures with XML assertions
+        if: failure()
+        shell: bash
+        run: |
+          find app/build/test-results -name 'TEST-*.xml' -type f -print0 |
+            xargs -0 -r grep -n -A30 -B3 '<failure' | head -180 || true
