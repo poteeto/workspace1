@@ -22,6 +22,8 @@ jobs:
         with:
           node-version: '24'
           registry-url: https://registry.npmjs.org
+      - name: Audit availability of every pinned npm dependency
+        run: node tools/audit-dsh-published-packages.mjs
       - name: Regenerate exact npm dependency lock for the pinned release
         working-directory: tools/dsh-runtime
         run: |
