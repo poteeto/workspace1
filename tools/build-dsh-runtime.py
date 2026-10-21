@@ -486,12 +486,18 @@ var DshaRecordHints = class {
         text = text.replace(create_anchor, create_replacement)
         # The emitted JS has no private field declarations. Add the field next
         # to the tracker declaration in the class body instead.
-        # Place the DSHA hint tracker next to the stable upstream field;
-        # the following field ordering changed in 0.2.1-rc.2.
-        class_anchor = '\ttracker = new JsonlBackendTracker(this.name);'
-        if text.count(class_anchor) != 1:
-            raise ValueError('会话后端 tracker 身份变化，必须重新检查')
-        text = text.replace(class_anchor, class_anchor + '\n\tdshaSessionHints = new DshaSessionHints();')
+        # rc2 moved tracker construction into the constructor and now declares
+        # only the class field. Inject our hint beside that exact declaration.
+        if json.loads((LOCK_ROOT / 'package.json').read_text())['dependencies']['@deepseek-ai/dsh'] == '0.2.1-rc.2':
+            class_anchor = '\ttracker;\n'
+            if text.count(class_anchor) != 1:
+                raise ValueError('会话后端 rc2 tracker 字段布局变化，必须重新检查')
+            text = text.replace(class_anchor, class_anchor + '\tdshaSessionHints = new DshaSessionHints();\n')
+        else:
+            class_anchor = '\ttracker = new JsonlBackendTracker(this.name);'
+            if text.count(class_anchor) != 1:
+                raise ValueError('会话后端 tracker 身份变化，必须重新检查')
+            text = text.replace(class_anchor, class_anchor + '\n\tdshaSessionHints = new DshaSessionHints();')
         find_anchor = '''\tasync findLog(id, signal) {\n\t\tconst matches = [];'''
         find_replacement = '''\tasync findLog(id, signal) {\n\t\tconst hinted = this.dshaSessionHints.get(id);\n\t\tif (hinted !== void 0) {\n\t\t\tconst selected = await this.resolveHintedGeneration(hinted, id, signal);\n\t\t\tif (selected !== void 0) return selected;\n\t\t\tthis.dshaSessionHints.forget(id);\n\t\t}\n\t\tconst matches = [];'''
         if text.count(find_anchor) != 1:
