@@ -44,6 +44,22 @@ jobs:
       - name: Install release dependencies without running third-party scripts
         working-directory: tools/dsh-runtime
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Inspect updated Lexical styling implementation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path("tools/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js").read_text()
+          lines = text.splitlines()
+          matches = [i for i, line in enumerate(lines) if "TOKEN_STYLE" in line or "splitText(" in line]
+          print("Matching lines:", len(matches))
+          shown = set()
+          for match in matches[:30]:
+            for i in range(max(0,match-4),min(len(lines),match+7)):
+              if i not in shown:
+                print(f"{i+1}: {lines[i]}")
+                shown.add(i)
+          PY
       - name: Probe DSHA's pinned Android compatibility anchors
         shell: bash
         run: |
