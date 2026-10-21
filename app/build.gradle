@@ -23,9 +23,11 @@ android {
         minSdk 30
         targetSdk 37
         buildConfigField 'String', 'BUNDLED_PNPM_VERSION', '"' + bundledTools.pnpm.version + '"'
-        versionCode 173
+        // Slim release: no second/legacy DSH recovery runtime; native data backup remains available.
+        buildConfigField 'boolean', 'BUNDLED_LEGACY_RECOVERY', 'false'
+        versionCode 174
         // DSHA 修订号 + 固定的北京时间戳 + 内置 DSH 版本；同一交付重建不变。
-        versionName "0.2.24-20261021.1909-dsh0.2.1-rc.2"
+        versionName "0.2.24-20261021.2200-dsh0.2.1-rc.2"
         testInstrumentationRunner project.findProperty('dsha.testRunner') ?: "com.deepseekharness.app.Rc13Instrumentation"
         ndk {
             abiFilters 'arm64-v8a'
@@ -126,8 +128,7 @@ android {
     }
 
     sourceSets {
-        main.assets.setSrcDirs([layout.buildDirectory.dir("generated/standardAssets").get().asFile,
-                layout.buildDirectory.dir("generated/recoveryAssets").get().asFile])
+        main.assets.setSrcDirs([layout.buildDirectory.dir("generated/standardAssets").get().asFile])
         main.java.srcDir(layout.buildDirectory.dir("generated/uiLanguage").get().asFile)
         // Both browser test entry points load one test-only HTML fixture.
         debug.assets.srcDir(rootProject.file("tools/fixtures/web-state"))
@@ -302,9 +303,8 @@ def prepareRecoveryAssets = tasks.register("prepareRecoveryAssets", Exec) {
             "--output", layout.buildDirectory.dir("generated/recoveryAssets").get().asFile.absolutePath,
             "--shared-assets", layout.buildDirectory.dir("generated/standardAssets").get().asFile.absolutePath)
 }
-tasks.configureEach {
-    if (name.matches("merge(Standard|Low).*Assets")) dependsOn(prepareRecoveryAssets)
-}
+// Explicitly omit the independent old DSH recovery capsule from this slim build.
+// The task remains available for legacy builds but is not a build dependency.
 
 def verifyBackupDependencies = tasks.register("verifyBackupDependencies") {
     inputs.file(rootProject.file("tools/backup-dependencies.lock.json"))
@@ -357,7 +357,7 @@ def verifyBackupDependencies = tasks.register("verifyBackupDependencies") {
     }
 }
 tasks.withType(JavaCompile).configureEach { dependsOn(verifyBackupDependencies) }
-tasks.named("preBuild").configure { dependsOn(prepareStandardAssets, prepareRecoveryAssets) }
+tasks.named("preBuild").configure { dependsOn(prepareStandardAssets) }
 def prepareUiLanguages = tasks.register("prepareUiLanguages", Exec) {
     inputs.file(rootProject.file("tools/prepare-ui-languages.py"))
     inputs.file(rootProject.file("tools/i18n/messages.json"))
