@@ -12,6 +12,12 @@ on:
       - app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java
       - app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java
       - app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java
+      - app/src/main/java/com/deepseekharness/app/runtime/RuntimeLauncher.java
+      - app/src/main/java/com/deepseekharness/app/runtime/RuntimeExecution.java
+      - app/src/main/java/com/deepseekharness/app/runtime/ColdToolsInstaller.java
+      - app/src/main/java/com/deepseekharness/app/util/ColdInstallPlan.java
+      - app/src/test/java/com/deepseekharness/app/runtime/RuntimeLauncherTest.java
+      - app/src/test/java/com/deepseekharness/app/util/ColdInstallPlanTest.java
       - app/src/test/java/com/deepseekharness/app/util/LanSettingsCompatibilityTest.java
       - app/src/test/java/com/deepseekharness/app/util/AdbWheelPathsTest.java
       - app/src/test/java/com/deepseekharness/app/util/ManagedPatchRegistryIntegrationTest.java
