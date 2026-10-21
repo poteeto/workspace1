@@ -22,6 +22,11 @@ jobs:
       - name: Install exact DSH linux-arm64 package graph
         working-directory: tools/dsh-runtime
         run: npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund
+      - name: Generate host-managed runtime files exactly as APK build does
+        run: |
+          python3 tools/pc-migration/prepare-assets.py --output app/src/main/assets
+          python3 tools/prepare-backup-assets.py --write
+          python3 tools/generate-third-party-notices.py
       - name: Exercise every installer patch against the exact published modules
         run: python3 tools/verify-runtime-installation.py
       - name: Inspect settings source if a reviewed migration contract changes
