@@ -2,7 +2,7 @@ name: Build isolated DSHA rc2 Android test APK
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
-    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/build.gradle, app/src/main/res/**, app/src/main/java/com/deepseekharness/app/ui/**, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java, app/src/main/assets/runtime-patches.json, tools/report-apk-size.py, tools/verify-monochrome-ui.py, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
+    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/build.gradle, app/src/main/res/**, app/src/main/java/com/deepseekharness/app/ui/**, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java, app/src/main/assets/runtime-patches.json, tools/report-apk-size.py, tools/verify-monochrome-ui.py, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -11,10 +11,6 @@ jobs:
     timeout-minutes: 110
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-          path: original
       - uses: actions/setup-node@v4
         with: {node-version: '24'}
       - name: Install pinned Java 17, Android SDK, and gcc-arm64
@@ -61,34 +57,6 @@ jobs:
           python3 tools/build-dsh-runtime.py \
             --source tools/dsh-runtime/node_modules \
             --output app/src/main/assets/dsh-runtime.bin
-      - name: Build frozen recovery runtime from original 0.2.0-rc.2 sources
-        shell: bash
-        run: |
-          set -euo pipefail
-          (cd original/tools/dsh-runtime && npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund)
-          (cd original && python3 tools/build-dsh-runtime.py \
-            --source tools/dsh-runtime/node_modules \
-            --output "$RUNNER_TEMP/recovery-dsh-runtime.bin")
-          python3 - <<'PY'
-          import hashlib,json,os
-          from pathlib import Path
-          def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
-          lockfile=Path('tools/recovery-runtime/lock.json')
-          lock=json.loads(lockfile.read_text())
-          source=Path(os.environ['RUNNER_TEMP'])/'recovery-dsh-runtime.bin'
-          old=next(row for row in lock['archives'] if row['asset']=='recovery-dsh-runtime.bin')
-          # CI candidate only: do not mutate the checked-in emergency snapshot.
-          # The old frozen package is independently constructed from main;
-          # record its actual SHA for this isolated install experiment.
-          old['sha256']=digest(source)
-          lockfile.write_text(json.dumps(lock,indent=2)+'\n')
-          dest=Path('tools/recovery-runtime/archives')
-          dest.mkdir(parents=True,exist_ok=True)
-          (dest/'recovery-dsh-runtime.bin').write_bytes(source.read_bytes())
-          rootfs=Path('app/src/main/assets/offline-rootfs.bin')
-          (dest/'recovery-rootfs.bin').write_bytes(rootfs.read_bytes())
-          print('EXPERIMENTAL_RECOVERY_OLD_VERSION',lock['dshVersion'],old['sha256'])
-          PY
       - name: Refresh provenance for target-specific packages without weakening policy
         run: |
           python3 tools/pc-migration/prepare-assets.py --output app/src/main/assets
@@ -136,9 +104,28 @@ jobs:
               raise SystemExit('APK_MISSING_OFFLINE_LINUX')
             ver=json.loads(z.read('assets/runtime-descriptor.json'))['dshVersion']
             if ver!='0.2.1-rc.2':raise SystemExit('APK_OLD_DSH_VERSION:'+ver)
-            recovery=('assets/recovery-dsh-runtime.bin','assets/recovery-runtime.json')
-            if not all(x in a for x in recovery):
-              raise SystemExit('APK_MISSING_OFFLINE_RECOVERY')
+            # The user explicitly opted out of the complete older DSH runtime.
+            legacy=[p for p in a if p.startswith('assets/recovery-dsh-runtime') or
+                    p.startswith('assets/recovery-rootfs') or
+                    p.startswith('assets/recovery-runtime.json') or
+                    p.startswith('assets/recovery-asset-locations.json') or
+                    p.startswith('assets/recovery-overlay/')]
+            if legacy: raise SystemExit('APK_UNWANTED_LEGACY_RECOVERY:'+repr(legacy[:10]))
+            # Check the ACTUAL packaged assets, not only the checked-in source.
+            registry=json.loads(z.read('assets/runtime-patches.json'))
+            if registry['dshVersion']!=ver:
+              raise SystemExit('APK_PATCH_REGISTRY_VERSION:'+repr((registry['dshVersion'],ver)))
+            count=0
+            for entry in registry['active']:
+              asset='assets/'+entry['asset']
+              if asset not in a:raise SystemExit('APK_MISSING_PATCH_RECIPE:'+asset)
+              recipe=json.loads(z.read(asset))
+              if recipe.get('dshVersion')!=ver:
+                raise SystemExit('APK_PATCH_RECIPE_VERSION:'+repr((asset,recipe.get('dshVersion'),ver)))
+              count+=1
+            if count<20: raise SystemExit('APK_TOO_FEW_ACTIVE_PATCHES:'+str(count))
+            print('VALIDATED_EMBEDDED_PATCH_VERSIONS',ver,'recipes',count)
+            print('VALIDATED_NO_LEGACY_RECOVERY')
             dex=[zinfo for zinfo in z.infolist() if zinfo.filename.startswith('classes') and zinfo.filename.endswith('.dex')]
             if not dex or any(zinfo.compress_type!=zipfile.ZIP_DEFLATED for zinfo in dex):
               raise SystemExit('APK_DEX_NOT_COMPRESSED')
