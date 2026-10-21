@@ -6,6 +6,7 @@ on:
       - .github/workflows/audit-runtime-host.yml
       - tools/audit-runtime-postinstall.py
       - tools/verify-runtime-installation.py
+      - tools/verify-managed-runtime-syntax.py
       - app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java
       - app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java
       - app/src/main/assets/runtime-patches.json
@@ -29,6 +30,8 @@ jobs:
           # materialized in the separate complete APK build. This fast audit
           # checks the npm-facing installer contracts without claiming the
           # complete asset manifest is already generated.
+      - name: Syntax-validate every signed generated Android runtime asset
+        run: python3 tools/verify-managed-runtime-syntax.py
       - name: Exercise every installer patch against the exact published modules
         run: python3 tools/verify-runtime-installation.py
       - name: Inspect settings source if a reviewed migration contract changes
