@@ -95,6 +95,26 @@ jobs:
           PY
       - name: Check unified light/dark monochrome native UI and version pins
         run: python3 tools/verify-monochrome-ui.py
+      # The checked-in arm64 ELF is a historical binary. Always rebuild from the
+      # CURRENT session-launcher.c before Gradle packages any Android APK.
+      # A stale ELF can emit DSHA_SESSION_STAT_V1 but cannot speak V2 READY/ECHILD.
+      - name: Rebuild reproducible Android owned-tree supervisor from current C
+        shell: bash
+        run: |
+          set -euo pipefail
+          ndk="$(python3 tools/ci-toolchain.py --field ndk)"
+          target="app/src/main/jniLibs/arm64-v8a/libdsha-session.so"
+          python3 tools/native-session/build.py --ndk "$ANDROID_HOME/ndk/$ndk" --output "$target"
+          python3 tools/native-session/build.py --ndk "$ANDROID_HOME/ndk/$ndk" --check
+          python3 - <<'PY'
+          from pathlib import Path
+          binary=Path('app/src/main/jniLibs/arm64-v8a/libdsha-session.so').read_bytes()
+          required=(b'DSHA_SESSION_STAT_V1',b'READY DSHA_OWNED_TREE_V2',
+                    b'OWNED_TREE_EMPTY ECHILD',b'COMMAND_EXITED',b'NO_GUEST')
+          missing=[part.decode() for part in required if part not in binary]
+          if missing:raise SystemExit('ANDROID_SIGNED_SUPERVISOR_PROTOCOL_MISSING:'+repr(missing))
+          print('SIGNED_NATIVE_V2_PROTOCOL_REBUILT_FROM_SOURCE',len(binary))
+          PY
       - name: Build fully bundled Standard debug APK
         shell: bash
         run: |
@@ -148,6 +168,22 @@ jobs:
             print('VALIDATED_DEX_COMPRESSION',len(dex),sum(zinfo.compress_size for zinfo in dex),sum(zinfo.file_size for zinfo in dex))
             print('VALIDATED_DEBUG_APK',apk,apk.stat().st_size,hashlib.sha256(apk.read_bytes()).hexdigest(),'dsh',ver)
           PY
+      - name: Assert the APK actually contains this build's source-compiled native V2 supervisor
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,zipfile
+          apk=Path('app/build/outputs/apk/standard/debug/app-standard-debug.apk')
+          built=Path('app/src/main/jniLibs/arm64-v8a/libdsha-session.so').read_bytes()
+          with zipfile.ZipFile(apk) as archive:
+              packaged=archive.read('lib/arm64-v8a/libdsha-session.so')
+          if built!=packaged:
+              raise SystemExit('APK_NATIVE_SESSION_NOT_SOURCE_COMPILED')
+          required=(b'READY DSHA_OWNED_TREE_V2',b'OWNED_TREE_EMPTY ECHILD')
+          if any(part not in packaged for part in required):
+              raise SystemExit('APK_NATIVE_V2_PROTOCOL_NOT_SHIPPED')
+          print('APK_NATIVE_SOURCE_BYTES_EQUAL',len(packaged),hashlib.sha256(packaged).hexdigest())
+          PY
       - name: SHA-256 attest every signed managed runtime file inside the APK
         run: python3 tools/verify-apk-runtime-contract.py app/build/outputs/apk/standard/debug/app-standard-debug.apk
       - name: Measure actual APK size by resource group
@@ -165,7 +201,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v177-ANDROID-BIRTH
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v178-NATIVE-V2
           path: app/build/outputs/apk/standard/debug/*.apk
           compression-level: 0
           retention-days: 14
@@ -173,7 +209,50 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: DSHA-v177-ARM64-KERNEL-BIRTH-ANDROIDTEST
+          name: DSHA-v178-ARM64-NATIVE-V2-ANDROIDTEST
           path: app/build/outputs/apk/androidTest/standard/debug/*.apk
           if-no-files-found: error
+          retention-days: 14
+
+  # Same-run artifact dependency: never test a stale, hardcoded v177 APK.
+  # Emulator uses Android/Bionic with ARM translation; still not OEM real-device proof.
+  android-kvm-native-v2:
+    needs: test-apk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require Android emulator KVM
+        run: |
+          set -euo pipefail
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Provision Android 15 emulator exposing ARM64 via native bridge
+        run: |
+          set -euo pipefail
+          { yes || true; } | sdkmanager --install 'emulator' 'platform-tools' 'system-images;android-35;google_apis;x86_64'
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd -n dsha-kvm -k 'system-images;android-35;google_apis;x86_64' -d pixel_7 -p "$ANDROID_AVD_HOME/dsha-kvm.avd" --force
+          test -f "$ANDROID_AVD_HOME/dsha-kvm.avd/config.ini"
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v178-NATIVE-V2
+          path: packaged/main
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-v178-ARM64-NATIVE-V2-ANDROIDTEST
+          path: packaged/tests
+      - name: Prove kernel peer and ECHILD using APK built in THIS workflow run
+        run: bash tools/android-kvm-bridge-test.sh packaged/main packaged/tests
+      - name: Preserve Android emulator diagnostics on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSHA-v178-ANDROID-KVM-NATIVE-V2-EVIDENCE
+          path: emulator-evidence/
+          if-no-files-found: warn
           retention-days: 14
