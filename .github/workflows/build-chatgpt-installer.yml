@@ -24,9 +24,10 @@ jobs:
           java-version: '17'
       - name: Prepare Android SDK
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
-          yes | sdkmanager --licenses >/dev/null || true
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
