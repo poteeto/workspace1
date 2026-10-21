@@ -111,6 +111,22 @@ public class ColdInstallPlanTest {
   }
 
   @Test
+  public void coldConfiguredProbeOwnsCompleteEngineCapabilityQualification() {
+    String command = ColdInstallPlan.probeScript();
+    assertTrue(command.contains("DSHA_ENGINE_PROBE_STAGE=SHELL"));
+    assertTrue(command.contains("DSHA_ENGINE_PROBE_STAGE=STATX_BEGIN"));
+    assertTrue(command.contains("DSHA_ENGINE_PROBE_STAGE=EXECVEAT_CHILD"));
+    assertTrue(command.contains("DSHA_ENGINE_CAPABILITY_READY"));
+    assertTrue(command.contains("DSHA_ENGINE_PACKAGE_CAPABILITY_READY"));
+    assertTrue(command.indexOf("DSHA_ENGINE_CAPABILITY_READY")
+        < command.indexOf(ColdInstallPlan.PROBE_READY));
+    assertTrue(command.indexOf("DSHA_ENGINE_PACKAGE_CAPABILITY_READY")
+        < command.indexOf(ColdInstallPlan.PROBE_READY));
+    assertFalse(command.contains("dpkg -i"));
+    assertFalse(command.contains("apt install"));
+  }
+
+  @Test
   public void failedPreferenceCommitCannotPublishReady() {
     List<String> calls = new ArrayList<>();
     assertThrows(
