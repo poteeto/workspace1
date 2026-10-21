@@ -2,7 +2,7 @@ name: Build isolated DSHA rc2 Android test APK
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
-    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
+    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/assets/runtime-patches.json, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -96,6 +96,24 @@ jobs:
           python3 tools/generate-third-party-notices.py
           python3 tools/prepare-runtime-descriptor.py --write
           python3 tools/prepare-runtime-descriptor.py --check
+      - name: Enforce Android and DSH patch registry version alignment
+        run: |
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          target = json.loads(Path("tools/dsh-runtime/package.json").read_text())["dependencies"]["@deepseek-ai/dsh"]
+          registry = json.loads(Path("app/src/main/assets/runtime-patches.json").read_text())
+          source = Path("app/src/main/java/com/deepseekharness/app/util/Constants.java").read_text()
+          found = re.search(r'DSH_VERSION\\s*=\\s*"([^"]+)"', source)
+          if not found or found.group(1) != target or registry["dshVersion"] != target:
+              raise SystemExit("ANDROID_DSH_REGISTRY_VERSION_MISMATCH: " + repr((found.group(1) if found else None, registry["dshVersion"], target)))
+          for entry in registry["active"]:
+              name = entry["asset"]
+              spec = json.loads((Path("app/src/main/assets") / name).read_text())
+              if spec.get("dshVersion") != target:
+                  raise SystemExit("ACTIVE_PATCH_VERSION_MISMATCH: " + name)
+          print("ANDROID_PATCH_REGISTRY_VERSION_OK", target)
+          PY
       - name: Build fully bundled Standard debug APK
         shell: bash
         run: |
