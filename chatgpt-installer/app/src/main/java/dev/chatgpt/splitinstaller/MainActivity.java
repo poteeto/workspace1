@@ -2,7 +2,11 @@ package dev.chatgpt.splitinstaller;
 
 import android.app.Activity;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
@@ -47,6 +51,12 @@ public final class MainActivity extends Activity {
     private File pendingArchive;
     private boolean busy;
     private boolean permissionPageOpen;
+    private final BroadcastReceiver statusListener = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            showRecordedStatus();
+        }
+    };
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -60,7 +70,7 @@ public final class MainActivity extends Activity {
         setContentView(scroller);
 
         TextView heading = new TextView(this);
-        heading.setText("ChatGPT 官方签名安装器");
+        heading.setText("ChatGPT 官方签名安装器 v2");
         heading.setTextSize(22);
         heading.setGravity(Gravity.CENTER_HORIZONTAL);
         panel.addView(heading, new LinearLayout.LayoutParams(-1, -2));
@@ -82,7 +92,7 @@ public final class MainActivity extends Activity {
                 embedded.setText("直接安装内置 ChatGPT");
                 panel.addView(embedded);
                 embedded.setOnClickListener(v -> {
-                    if (busy) return;
+                    if (busy || rejectConcurrentSession()) return;
                     busy = true;
                     say("正在读取内置安装包……");
                     new Thread(() -> {
@@ -98,7 +108,7 @@ public final class MainActivity extends Activity {
         }
         output = new TextView(this);
         output.setTextSize(15);
-        output.setText("\n就绪。");
+        output.setText("\n" + InstallState.installedStatus(this));
         panel.addView(output);
     }
 
@@ -106,8 +116,37 @@ public final class MainActivity extends Activity {
         runOnUiThread(() -> { if (output != null) output.setText("\n" + message); });
     }
 
+    private boolean rejectConcurrentSession() {
+        if (!InstallState.isSessionBusy(this)) return false;
+        say("上一次系统安装流程还没有结束，请等待确认结果。");
+        return true;
+    }
+
+    private void showRecordedStatus() {
+        String last = InstallState.prefs(this).getString("last_result", null);
+        if (last == null) say(InstallState.installedStatus(this));
+        else say(last + "\n\n" + InstallState.installedStatus(this));
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        IntentFilter filter = new IntentFilter(InstallState.ACTION_RESULT);
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(statusListener, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(statusListener, filter);
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        unregisterReceiver(statusListener);
+        super.onStop();
+    }
+
     private void openPicker() {
-        if (busy) return;
+        if (busy || rejectConcurrentSession()) return;
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
@@ -147,7 +186,7 @@ public final class MainActivity extends Activity {
     }
 
     private void installWhenPermitted() {
-        if (busy || pendingArchive == null) return;
+        if (busy || pendingArchive == null || rejectConcurrentSession()) return;
         if (!getPackageManager().canRequestPackageInstalls()) {
             if (!permissionPageOpen) {
                 permissionPageOpen = true;
@@ -172,11 +211,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        String last = getSharedPreferences("installer", MODE_PRIVATE).getString("last_result", null);
-        if (last != null) {
-            getSharedPreferences("installer", MODE_PRIVATE).edit().remove("last_result").apply();
-            say(last);
-        }
+        if (!busy) showRecordedStatus();
         if (permissionPageOpen && getPackageManager().canRequestPackageInstalls()) {
             permissionPageOpen = false;
             installWhenPermitted();
@@ -201,7 +236,7 @@ public final class MainActivity extends Activity {
             try (InputStream in = zip.getInputStream(base); OutputStream out = new FileOutputStream(baseForCheck)) {
                 transferLimited(in, out, MAX_APK);
             }
-            verifyOfficialSignature(baseForCheck);
+            PackageInfo targetInfo = verifyOfficialSignature(baseForCheck);
 
             List<ZipEntry> selected = selectSplits(all, base);
             long total = 0;
@@ -230,14 +265,34 @@ public final class MainActivity extends Activity {
                         session.fsync(out);
                     }
                 }
+                long targetVersion = targetInfo.getLongVersionCode();
+                long beforeVersion = InstallState.version(InstallState.installed(this));
+                SharedPreferences prefs = InstallState.prefs(this);
+                boolean saved = prefs.edit()
+                        .putInt("active_session_id", sessionId)
+                        .putLong("expected_version_code", targetVersion)
+                        .putLong("installed_before_version", beforeVersion)
+                        .putLong("install_start_ms", System.currentTimeMillis())
+                        .putString("last_result", "安装已提交，正在等待系统确认……")
+                        .commit();
+                if (!saved) throw new Exception("无法记录安装会话状态");
+
                 Intent callback = new Intent(this, InstallResultReceiver.class);
+                callback.setData(Uri.parse("chatgptinstaller://session/" + sessionId));
+                callback.putExtra(InstallState.REQUEST_SESSION_ID, sessionId);
                 PendingIntent sender = PendingIntent.getBroadcast(
-                        this, 1436, callback, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+                        this, sessionId, callback,
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
                 session.commit(sender.getIntentSender());
                 committed = true;
                 say("已提交系统安装器，请在弹出的系统界面确认安装。");
             } finally {
-                if (!committed) session.abandon();
+                if (!committed) {
+                    InstallState.prefs(this).edit()
+                            .remove("active_session_id").remove("expected_version_code")
+                            .remove("installed_before_version").remove("install_start_ms").commit();
+                    session.abandon();
+                }
                 session.close();
             }
         } finally {
@@ -245,7 +300,7 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void verifyOfficialSignature(File base) throws Exception {
+    private PackageInfo verifyOfficialSignature(File base) throws Exception {
         PackageInfo info = getPackageManager().getPackageArchiveInfo(
                 base.getAbsolutePath(), PackageManager.GET_SIGNING_CERTIFICATES);
         if (info == null || !CHATGPT_PACKAGE.equals(info.packageName)) {
@@ -264,6 +319,7 @@ public final class MainActivity extends Activity {
             throw new Exception("签名证书不匹配 APKMirror 公布的 ChatGPT 官方签名。\n实际：" + hex);
         }
         say("已验证官方签名，ChatGPT 版本：" + info.versionName);
+        return info;
     }
 
     private List<ZipEntry> selectSplits(List<ZipEntry> all, ZipEntry base) throws Exception {
