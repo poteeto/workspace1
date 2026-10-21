@@ -62,6 +62,26 @@ jobs:
           python3 tools/build-dsh-runtime.py \
             --source tools/dsh-runtime/node_modules \
             --output app/src/main/assets/dsh-runtime.bin
+      # The checked-in arm64 ELF is a historical binary. Always rebuild from the
+      # CURRENT session-launcher.c before Gradle packages any Android APK.
+      # A stale ELF can emit DSHA_SESSION_STAT_V1 but cannot speak V2 READY/ECHILD.
+      - name: Rebuild reproducible Android owned-tree supervisor from current C
+        shell: bash
+        run: |
+          set -euo pipefail
+          ndk="$(python3 tools/ci-toolchain.py --field ndk)"
+          target="app/src/main/jniLibs/arm64-v8a/libdsha-session.so"
+          python3 tools/native-session/build.py --ndk "$ANDROID_HOME/ndk/$ndk" --output "$target"
+          python3 tools/native-session/build.py --ndk "$ANDROID_HOME/ndk/$ndk" --check
+          python3 - <<'PY'
+          from pathlib import Path
+          binary=Path('app/src/main/jniLibs/arm64-v8a/libdsha-session.so').read_bytes()
+          required=(b'DSHA_SESSION_STAT_V1',b'READY DSHA_OWNED_TREE_V2',
+                    b'OWNED_TREE_EMPTY ECHILD',b'COMMAND_EXITED',b'NO_GUEST')
+          missing=[part.decode() for part in required if part not in binary]
+          if missing:raise SystemExit('ANDROID_SIGNED_SUPERVISOR_PROTOCOL_MISSING:'+repr(missing))
+          print('SIGNED_NATIVE_V2_PROTOCOL_REBUILT_FROM_SOURCE',len(binary))
+          PY
       - name: Refresh provenance for target-specific packages without weakening policy
         run: |
           python3 tools/pc-migration/prepare-assets.py --output app/src/main/assets
@@ -95,26 +115,6 @@ jobs:
           PY
       - name: Check unified light/dark monochrome native UI and version pins
         run: python3 tools/verify-monochrome-ui.py
-      # The checked-in arm64 ELF is a historical binary. Always rebuild from the
-      # CURRENT session-launcher.c before Gradle packages any Android APK.
-      # A stale ELF can emit DSHA_SESSION_STAT_V1 but cannot speak V2 READY/ECHILD.
-      - name: Rebuild reproducible Android owned-tree supervisor from current C
-        shell: bash
-        run: |
-          set -euo pipefail
-          ndk="$(python3 tools/ci-toolchain.py --field ndk)"
-          target="app/src/main/jniLibs/arm64-v8a/libdsha-session.so"
-          python3 tools/native-session/build.py --ndk "$ANDROID_HOME/ndk/$ndk" --output "$target"
-          python3 tools/native-session/build.py --ndk "$ANDROID_HOME/ndk/$ndk" --check
-          python3 - <<'PY'
-          from pathlib import Path
-          binary=Path('app/src/main/jniLibs/arm64-v8a/libdsha-session.so').read_bytes()
-          required=(b'DSHA_SESSION_STAT_V1',b'READY DSHA_OWNED_TREE_V2',
-                    b'OWNED_TREE_EMPTY ECHILD',b'COMMAND_EXITED',b'NO_GUEST')
-          missing=[part.decode() for part in required if part not in binary]
-          if missing:raise SystemExit('ANDROID_SIGNED_SUPERVISOR_PROTOCOL_MISSING:'+repr(missing))
-          print('SIGNED_NATIVE_V2_PROTOCOL_REBUILT_FROM_SOURCE',len(binary))
-          PY
       - name: Build fully bundled Standard debug APK
         shell: bash
         run: |
