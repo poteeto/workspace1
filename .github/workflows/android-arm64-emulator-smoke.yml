@@ -1,0 +1,46 @@
+name: Android ARM64 emulator cold-start evidence
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths:
+      - .github/workflows/android-arm64-emulator-smoke.yml
+      - tools/android-emulator-cold-smoke.sh
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  emulator:
+    # Apple Silicon macOS hosts can run an ARM64 Android emulator directly.
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm native Apple Silicon and Android tools
+        run: |
+          set -euo pipefail
+          uname -m
+          test "$(uname -m)" = arm64
+          test -x "$ANDROID_HOME/emulator/emulator"
+          test -x "$ANDROID_HOME/platform-tools/adb"
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v176-COLD-QUALIFIED
+          run-id: 39635896862
+          github-token: ${{ github.token }}
+          path: packaged
+      - name: Install Android ARM64 emulator system image
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "system-images;android-35;google_apis;arm64-v8a" || test "${PIPESTATUS[0]:-0}" = 141
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n dsha-arm64 -k "system-images;android-35;google_apis;arm64-v8a" -d "pixel_7"
+      - name: Really install and launch DSHA APK in Android ARM64 emulator
+        run: bash tools/android-emulator-cold-smoke.sh packaged
+      - name: Upload local emulator evidence only (no user data)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-ARM64-emulator-cold-install-diagnostics
+          path: emulator-evidence/
+          if-no-files-found: warn
+          retention-days: 7
