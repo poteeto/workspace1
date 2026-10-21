@@ -12,6 +12,7 @@ import collections
 import json
 from pathlib import Path
 import sys
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / 'app/src/main/assets'
@@ -53,6 +54,16 @@ def exact(source,before,after):
     if old!=1 or patched!=0:
         raise ValueError(f'expected one old/zero patched, got old={old} patched={patched}; anchor='+repr(before[:110]))
     return source.replace(before,after)
+
+def validate_javascript(name, source):
+    # Parse the final transformed module as ESM, but do not execute it.
+    # Exact anchor match alone cannot guarantee a syntactically valid patch.
+    result=subprocess.run(
+        ['node','--check','--input-type=module'],
+        input=source.encode('utf-8'),stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=20)
+    if result.returncode:
+        raise ValueError('PATCHED_JS_SYNTAX_INVALID:'+name+':'
+                         +result.stderr.decode('utf-8','replace')[-450:])
 
 def recipe_patches(recipe):
     for p in recipe.get('patches',[]):
@@ -106,6 +117,7 @@ def check_patch_registry():
             return source
         first=run(original)
         second=run(first)
+        if path.endswith(('.js','.mjs','.cjs')):validate_javascript(path,first)
         if first!=second:raise ValueError('non-idempotent chain '+path)
         if first==original:
             # Some modules (notably rc1 settings) are intentionally patched
@@ -129,8 +141,10 @@ def check_pdf():
     before=spec['workerBefore']
     # Java JSONObject.quote emits a JSON double-quoted JS compatible literal.
     current=exact(current,before,'new Blob(['+json.dumps(compatibility+'\n',ensure_ascii=False)+', _dsh_pdf_worker_default,')
+    validate_javascript(spec['module'],current)
     source=module(spec['resourceModule'])
     transformed=exact(source,spec['resourceBefore'],spec['resourceAfter'])
+    validate_javascript(spec['resourceModule'],transformed)
     if 'DSHA_PDF_COMPAT_V1' not in current or spec['resourceAfter'] not in transformed:
         raise ValueError('PDF patch not present or not idempotent')
     return 'client PDF, Worker and resource protocol anchors'
@@ -142,6 +156,7 @@ def check_client_combos():
     updated=s
     for before,after in recipe_patches(spec):
         updated=exact(updated,before,after)
+    validate_javascript('@deepseek-ai/dsh-client-modules/lib/index.js',updated)
     again=updated
     for before,after in recipe_patches(spec):
         again=exact(again,before,after)
@@ -189,6 +204,7 @@ def check_workspace_policy():
     src=module(spec['module'])
     for before,after in recipe_patches(spec):
         src=exact(src,before,after)
+    validate_javascript(spec['module'],src)
     return f'{len(spec["patches"])} workspace policy transformations available'
 
 def check_packaging_source():
