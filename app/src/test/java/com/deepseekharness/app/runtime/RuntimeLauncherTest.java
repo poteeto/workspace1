@@ -61,6 +61,53 @@ public class RuntimeLauncherTest {
     };
   }
 
+  private static ContainerRuntime fakeWithId(String id) {
+    return new ContainerRuntime() {
+      public String id() { return id; }
+      public String displayName() { return id; }
+      public boolean available() { return true; }
+      public String unavailableReason() { return ""; }
+      public List<String> baseArgv(File root, boolean links) { return List.of("mock"); }
+      public void applyEnv(ProcessBuilder builder, File base, File lib, File tmp) {}
+      public void prepare() {}
+    };
+  }
+
+  @Test
+  public void coldToolProbeDoesNotRunInstalledRootQualificationBeforeColdPlan()
+      throws Exception {
+    // A real APK reported RUNTIME_CAPABILITY_UNCONFIRMED while installing
+    // Ubuntu tools. ColdInstallPlan has its own probe/fallback contract; the
+    // extra installed-root qualifier never belonged in the cold launch path.
+    File root = temporary.newFolder("cold");
+    var launcher = new RuntimeLauncher(null, root, root, root, root, ports);
+    var spec = LaunchSpec.runtime(fakeWithId("bxroot"))
+        .isolated(true).coldTrace(true)
+        .coldMode(com.deepseekharness.app.util.ColdInstallPlan.Mode.BXROOT)
+        .build();
+    // If capable() tried installed-root qualification, context=null and the
+    // unpopulated root would fail immediately; no guest command is started.
+    assertSame(spec, launcher.capable(spec));
+    assertSame(spec, launcher.capable(spec));
+  }
+
+  @Test
+  public void coldToolProbeRejectsMismatchedFrozenModesWithoutLaunching()
+      throws Exception {
+    File root = temporary.newFolder("mismatch");
+    var launcher = new RuntimeLauncher(null, root, root, root, root, ports);
+    for (LaunchSpec candidate : List.of(
+        LaunchSpec.runtime(fakeWithId("bxroot")).isolated(true).coldTrace(true)
+            .coldMode(com.deepseekharness.app.util.ColdInstallPlan.Mode.PROOT).build(),
+        LaunchSpec.runtime(fakeWithId("bxroot")).isolated(true).coldTrace(false)
+            .coldMode(com.deepseekharness.app.util.ColdInstallPlan.Mode.BXROOT).build(),
+        LaunchSpec.runtime(fakeWithId("bxroot")).isolated(true).coldTrace(true).hardlinks(true)
+            .coldMode(com.deepseekharness.app.util.ColdInstallPlan.Mode.BXROOT).build())) {
+      var err = assertThrows(java.io.IOException.class, () -> launcher.capable(candidate));
+      assertEquals("COLD_FROZEN_ENGINE_MISMATCH", err.getMessage());
+    }
+  }
+
   @Test
   public void preparationFailureCompletesTheBoundRecordBeforeAnySpawn() throws Exception {
     File root = temporary.newFolder();
