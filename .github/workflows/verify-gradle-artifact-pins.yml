@@ -62,4 +62,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Append immutable Maven artifact SHA-256 verification pins"
+          git fetch origin upgrade/dsh-0.2.1-rc.2
+          git rebase origin/upgrade/dsh-0.2.1-rc.2
           git push origin HEAD:upgrade/dsh-0.2.1-rc.2
