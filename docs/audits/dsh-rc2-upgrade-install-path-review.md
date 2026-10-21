@@ -2,6 +2,29 @@
 
 审计范围以 **APK 可打包的 ARM64 Linux DSH 升级链路** 为核心；本报告不会把“Gradle 编译成功”当成“Android 真机正常启动”。
 
+## v175 实际安卓设备故障：安装离线 curl、git 与证书阶段
+
+设备报告：维护流程在 `ColdBundleExtractor` 的「安装离线 curl、git 与证书」阶段抛出 `RUNTIME_CAPABILITY_UNCONFIRMED`。
+
+### 复盘完整调用链
+
+`ColdBundleExtractor.run` → `ProotBootstrap.installBundledUbuntuTools` → `ColdToolsInstaller.configured` → `ColdToolsInstaller.modes` → **`boot.packageRuntime`** → `RuntimeExecution.packageRuntime` → **`RuntimeExecution.runtime`** → `RuntimeLauncher.preflight(runtime,false)` → `RuntimeEngineQualification.fingerprint/check`。只要此预先资格探针抛出 IO，`RuntimeExecution.runtime` 就会包装为截图里的 **`RUNTIME_CAPABILITY_UNCONFIRMED`**，导致真正安装使用的 `ColdInstallPlan.runConfigured` 尚未来得及执行。
+
+同时，`ColdToolsInstaller.collectColdCommand` 会通过 `RuntimeLauncher.start` 再次触发普通 rootfs 的资格探针，出现第二次错误的提前能力验收。
+
+**可确定的逻辑缺陷**：冷安装候选环境被强行套用“已发布、可正常使用的安装后环境”的资格探针；这两条调用链都违反 `ColdInstallPlan` 自己的候选运行时认证与回退/持久发布边界。截图没有公开第一层 IO 的完整内部原因，因此不能把失败归咎于特定内核/syscall。不能把“修复调用顺序”称作真机已经通过。
+
+### 兼容性修复
+
+1. `ColdToolsInstaller.modes` 不再调用 `boot.packageRuntime`，仅从本轮冻结的 `RuntimeHostPorts.engine` 获取已验证来源的运行引擎，再交给冷启动自己运行首次有界只读探针。
+2. `RuntimeLauncher.capable` 在且仅在显式 `coldMode`、`coldTrace`、匹配冻结的运行引擎、未开启普通硬链接模式的条件下，**不重复运行已经发布的 rootfs 资格探针**；真正业务命令仍按原逻辑执行。
+3. 为避免跳过 ABI/sycall 检查，`ColdInstallPlan.probeScript` 现在直接运行 `RuntimeCapabilityProbe.packages()`，在任何发布前实际测试 glibc、statx、execveat、ldconfig、dpkg、dpkg-deb 与 tar。
+4. 只有冷探针出现 **明确可验证、进程退出的能力拒绝**才允许 bxroot→proot 尝试；普通崩溃、超时、不确定终止或缺少确认结果都拒绝重放或发布。
+5. `RuntimeExecution.runtime` 仍保持已安装环境的安全限制，但遇错时提供经脱敏、限长的真实资格阶段原因，避免用户再次只看到完全不透明的泛用异常。
+6. `RuntimeLauncherTest` 与 `ColdInstallPlanTest` 新增回归，`tools/verify-cold-runtime-qualification.py` 额外把两个调用阶段的契约设为构建阻断条件。
+
+**必须真实验收**：同一手机上的冷安装、版本覆盖升级、已存在的私有 rootfs、真实内核与厂商系统执行策略；GitHub Ubuntu/x86_64 的 JVM/ZIP 校验不会等价于 Android ARM64 系统成功启动。
+
 ## 真实设备故障与根因
 
 - v173 测试 APK：`PATCH_REGISTRY_VERSION`；Android `Constants.DSH_VERSION` 与升级的资源清单版本不同。v174 已同步常量与补丁清单，并由 APK ZIP 内容校验确认 22 份补丁均为 `0.2.1-rc.2`。
