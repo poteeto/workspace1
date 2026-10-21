@@ -2,7 +2,7 @@ name: Build isolated DSHA rc2 Android test APK
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
-    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/build.gradle, app/src/main/res/**, app/src/main/java/com/deepseekharness/app/ui/**, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java, app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java, tools/verify-runtime-installation.py, app/src/main/assets/runtime-patches.json, tools/report-apk-size.py, tools/verify-monochrome-ui.py, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
+    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/build.gradle, app/src/main/res/**, app/src/main/java/com/deepseekharness/app/ui/**, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java, app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java, tools/verify-runtime-installation.py, tools/verify-runtime-archive.py, app/src/main/assets/runtime-patches.json, tools/report-apk-size.py, tools/verify-monochrome-ui.py, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -66,6 +66,8 @@ jobs:
           python3 tools/prepare-runtime-descriptor.py --check
       - name: Gate release on entire Android runtime postinstall patch simulation
         run: python3 tools/verify-runtime-installation.py
+      - name: Validate shipped DSH gzip tar against actual Android installer patch order
+        run: python3 tools/verify-runtime-archive.py app/src/main/assets/dsh-runtime.bin
       - name: Enforce Android and DSH patch registry version alignment
         run: |
           python3 - <<'PY'
