@@ -145,7 +145,7 @@ final class RuntimeLauncher {
         .runtime;
   }
 
-  private LaunchSpec capable(LaunchSpec spec) throws IOException {
+  LaunchSpec capable(LaunchSpec spec) throws IOException {
     return capable(spec, false);
   }
 
