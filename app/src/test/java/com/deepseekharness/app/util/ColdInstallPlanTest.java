@@ -111,6 +111,40 @@ public class ColdInstallPlanTest {
   }
 
   @Test
+  public void configuredColdProbeFallsBackOnlyAfterExplicitClosedCapabilityRejection()
+      throws Exception {
+    var observed = new ArrayList<String>();
+    var modes = ColdInstallPlan.modes(true, true, true, false);
+    var selected = ColdInstallPlan.runConfigured(
+        modes,
+        (mode, probe) -> {
+          observed.add(mode.name() + ":probe=" + probe);
+          return mode == ColdInstallPlan.Mode.BXROOT
+              ? result(78, false, true, "DSHA_ENGINE_CAPABILITY_UNSUPPORTED execveat")
+              : result(0, false, true,
+                  ColdInstallPlan.PROBE_READY + "\\n" + ColdInstallPlan.INSTALL_READY);
+        },
+        (mode, probe, outcome) -> {});
+    assertEquals(ColdInstallPlan.Mode.PROOT, selected);
+    assertEquals(List.of("BXROOT:probe=true", "PROOT:probe=true"), observed);
+  }
+
+  @Test
+  public void configuredColdProbeRejectsUnconfirmedCapabilityWithoutEngineReplay() {
+    var observed = new ArrayList<String>();
+    var modes = ColdInstallPlan.modes(true, true, true, false);
+    assertThrows(IOException.class, () -> ColdInstallPlan.runConfigured(
+        modes,
+        (mode, probe) -> {
+          observed.add(mode.name());
+          return result(125, false, true,
+              "RUNTIME_CAPABILITY_UNCONFIRMED: package fingerprint unknown");
+        },
+        (mode, probe, outcome) -> {}));
+    assertEquals(List.of("BXROOT"), observed);
+  }
+
+  @Test
   public void coldConfiguredProbeOwnsCompleteEngineCapabilityQualification() {
     String command = ColdInstallPlan.probeScript();
     assertTrue(command.contains("DSHA_ENGINE_PROBE_STAGE=SHELL"));
