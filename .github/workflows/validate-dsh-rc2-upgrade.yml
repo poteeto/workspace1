@@ -31,6 +31,8 @@ jobs:
       - name: Install release dependencies without running third-party scripts
         working-directory: tools/dsh-runtime
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Audit all DSHA mobile overlay compatibility anchors
+        run: python3 tools/audit-dsh-patches.py
       - name: Inspect updated Lexical styling implementation
         shell: bash
         run: |
