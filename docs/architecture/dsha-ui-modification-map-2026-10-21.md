@@ -103,7 +103,7 @@ Android APK (com.dsh.client; :app; Java 17 / XML / Material3)
 截图上的**大蓝色图标不是** `dsha_brand.png`：`welcome_page1.xml` 实际用的是 `ic_ui2_prompt` + `bg_ui2_mark`；欢迎页顶栏是 `ic_terminal` + `bg_logo`。另外 `activity_main.xml` 仍用了终端图标；背景以及按钮从 `@color/primary` 获得蓝色。独立资源 `drawable-nodpi/dsha_brand.png` 虽然存在，但不能据此认定它是该截图的来源。
 
 本分支目标与落实：
-- 欢迎第一页大图和欢迎页顶栏、主页顶栏统一改为 **同一套已确认的 DeepSeek 官方鲸鱼矢量**（`dsha_launcher_foreground.xml`）。
+- 欢迎第一页大图、欢迎页顶栏、主页顶栏、`dialog_about.xml`（关于弹窗）及 `AboutFragment.java`（动态关于页）统一改为 **同一套已确认的 DeepSeek 官方鲸鱼矢量**（`dsha_launcher_foreground.xml`）。
 - 品牌背景固定黑底，矢量路径固定白色；避免暗色主题下被 Material3 自动 tint 成黑色。
 - `values/colors.xml`（白天）及 `values-night/colors.xml`（夜间）移除蓝色主色，改为黑白中性灰；保留 `ok/warn/err` 的语义颜色，不能为了“黑白”抹去危险提示。
 - `bg_logo.xml` 保留为**功能图标**的中性主题卡片，`bg_dsha_brand.xml` 是品牌专用黑底，不混用。
