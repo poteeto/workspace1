@@ -177,7 +177,17 @@ final class ColdToolsInstaller {
   private static java.util.List<com.deepseekharness.app.util.ColdInstallPlan.Mode> modes(
       ProotBootstrap boot, boolean configured) throws IOException {
     var settings = boot.hostPorts().settings();
-    ContainerRuntime selected = boot.packageRuntime();
+    // IMPORTANT: this method is called BEFORE the cold package probe has run.
+    // RuntimeExecution.packageRuntime() performs the *ordinary installed-root*
+    // bxroot capability preflight. That preflight expects a fully qualified
+    // running environment and can throw RUNTIME_CAPABILITY_UNCONFIRMED while
+    // the freshly unpacked Ubuntu tools are still being staged. It is neither
+    // the cold probe nor authority to publish the candidate.
+    //
+    // Select a prepared native launcher without executing it. The separate
+    // ColdInstallPlan.runConfigured/run below owns the complete read-only
+    // probe, optional *explicitly proven* proot fallback, and publish gate.
+    ContainerRuntime selected = boot.hostPorts().engine(boot.ctx, boot.forceProot).runtime;
     return com.deepseekharness.app.util.ColdInstallPlan.modes(
         "bxroot".equals(selected.id()),
         "bxroot".equals(selected.id()),
