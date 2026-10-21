@@ -5,6 +5,10 @@ on:
     paths:
       - .github/workflows/validate-dsh-rc2-upgrade.yml
       - tools/dsh-runtime/package.json
+      - tools/build-dsh-runtime.py
+      - tools/test-lexical-claim-compat.mjs
+      - tools/verify-dsh-upgrade-apk.py
+      - app/src/main/assets/*-patch.json
   workflow_dispatch:
 
 permissions:
@@ -108,3 +112,8 @@ jobs:
             --output /tmp/dsha-upgraded-dsh-runtime.bin
       - name: Test deterministic runtime packaging and signed plugin policy
         run: python3 -m unittest discover -s tools -p 'test-dsh-runtime-packaging.py' -v
+      - name: Check package-specific Lexical migration against the created archive
+        env:
+          DSHA_TEST_RUNTIME: tools/dsh-runtime
+          DSHA_RUNTIME_ARCHIVE: /tmp/dsha-upgraded-dsh-runtime.bin
+        run: node tools/test-lexical-claim-compat.mjs
