@@ -2,7 +2,7 @@ name: Build isolated DSHA rc2 Android test APK
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
-    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/build.gradle, app/src/main/res/**, app/src/main/java/com/deepseekharness/app/ui/**, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java, app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java, tools/verify-runtime-installation.py, tools/verify-runtime-archive.py, tools/verify-managed-runtime-syntax.py, app/src/main/assets/runtime-patches.json, tools/report-apk-size.py, tools/verify-monochrome-ui.py, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
+    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/build.gradle, app/src/main/res/**, app/src/main/java/com/deepseekharness/app/ui/**, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java, app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java, tools/verify-runtime-installation.py, tools/verify-runtime-archive.py, tools/verify-managed-runtime-syntax.py, tools/verify-apk-runtime-contract.py, app/src/main/assets/runtime-patches.json, tools/report-apk-size.py, tools/verify-monochrome-ui.py, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -138,6 +138,8 @@ jobs:
             print('VALIDATED_DEX_COMPRESSION',len(dex),sum(zinfo.compress_size for zinfo in dex),sum(zinfo.file_size for zinfo in dex))
             print('VALIDATED_DEBUG_APK',apk,apk.stat().st_size,hashlib.sha256(apk.read_bytes()).hexdigest(),'dsh',ver)
           PY
+      - name: SHA-256 attest every signed managed runtime file inside the APK
+        run: python3 tools/verify-apk-runtime-contract.py app/build/outputs/apk/standard/debug/app-standard-debug.apk
       - name: Measure actual APK size by resource group
         shell: bash
         run: |
