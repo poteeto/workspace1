@@ -119,7 +119,15 @@ def prepare(output, shared_assets):
     files, links = describe(archives)
     dsh_archive = next(path for row, path in zip(lock['archives'], archives)
                        if row['asset'] == 'recovery-dsh-runtime.bin')
-    original, patched = build_browser_overlay(dsh_archive, ROOT / 'app/src/main/assets', lock['dshVersion'])
+    legacy_receipts = HOME / 'legacy-patches'
+    live_dsh = json.loads((ROOT / 'tools/dsh-runtime/package.json').read_text())['dependencies']['@deepseek-ai/dsh']
+    recipe_dir = legacy_receipts if lock['dshVersion'] != live_dsh else ROOT / 'app/src/main/assets'
+    for recipe in ('pdf-compat-patch.json', 'language-patch.json'):
+        locked = json.loads((recipe_dir / recipe).read_text(encoding='utf8'))
+        if locked.get('dshVersion') != lock['dshVersion']:
+            raise ValueError('RECOVERY_OLD_RECIPE_VERSION:'+recipe)
+    original, patched = build_browser_overlay(dsh_archive, ROOT / 'app/src/main/assets',
+                                              lock['dshVersion'], recipe_assets=recipe_dir)
     by_path = {row['path']: row for row in files}
     overlays = []
     for name, path in BROWSER_TARGETS.items():
@@ -141,6 +149,11 @@ def prepare(output, shared_assets):
     profiles = {name: digest(ROOT / 'app/src/main/assets' / name)
                 for name in ['recovery-profile-package.json', 'recovery-profile.patch.yml']}
     overlay_inputs = {name: digest(ROOT / 'app/src/main/assets' / name) for name in INPUT_ASSETS}
+    # Pin exact receipts for the frozen older backend separately from the active
+    # upgrade's live recipes; recovery must never inherit new patch anchors.
+    if recipe_dir != ROOT / 'app/src/main/assets':
+        for recipe in ('pdf-compat-patch.json','language-patch.json'):
+            overlay_inputs['legacy-patches/'+recipe] = digest(recipe_dir / recipe)
     contract = dict(schema=1, dshVersion=lock['dshVersion'], baseVersion=lock['baseVersion'],
                     archives=[dict(asset=row['asset'], sha256=row['sha256']) for row in lock['archives']],
                     expandedBytes=sum(row['bytes'] for row in files), files=files, links=links,
