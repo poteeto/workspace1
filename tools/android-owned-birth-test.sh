@@ -16,10 +16,10 @@ except subprocess.TimeoutExpired:
 "$EMULATOR" -avd dsha-arm64 -no-window -no-audio -no-boot-anim -gpu swiftshader -memory 2048 -no-snapshot -wipe-data >emulator-evidence/emulator.log 2>&1 &
 emulator_pid=$!
 cleanup() {
-  "$ADB" logcat -d -v threadtime -t 5500 >emulator-evidence/logcat.txt 2>&1 || true
-  "$ADB" shell dumpsys activity activities >emulator-evidence/activities.txt 2>&1 || true
-  "$ADB" shell dumpsys package com.dsh.client >emulator-evidence/package.txt 2>&1 || true
-  "$ADB" emu kill >/dev/null 2>&1 || true
+  bounded 20 "$ADB" logcat -d -v threadtime -t 5500 >emulator-evidence/logcat.txt 2>&1 || true
+  bounded 20 "$ADB" shell dumpsys activity activities >emulator-evidence/activities.txt 2>&1 || true
+  bounded 20 "$ADB" shell dumpsys package com.dsh.client >emulator-evidence/package.txt 2>&1 || true
+  bounded 12 "$ADB" emu kill >/dev/null 2>&1 || true
   kill "$emulator_pid" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -46,7 +46,7 @@ if [[ "$ready" != 1 ]]; then
   echo "ANDROID_EMULATOR_BOOT_TIMEOUT"; tail -100 emulator-evidence/emulator.log
   exit 1
 fi
-abi=$("$ADB" shell getprop ro.product.cpu.abi | tr -d '\r')
+abi=$(bounded 6 "$ADB" shell getprop ro.product.cpu.abi | tr -d '\r')
 [[ "$abi" == arm64-v8a ]] || { echo "EMULATOR_WRONG_ABI:$abi"; exit 1; }
 echo "ANDROID_ARM64_DEVICE_STARTED $abi"
 app=$(find "$1" -type f -name '*.apk' -print -quit)
@@ -70,10 +70,10 @@ echo "ANDROID_NATIVE_BIRTH_TEST_PASSED"
 bounded 25 "$ADB" shell am start -W -n com.dsh.client/com.deepseekharness.app.ui.MainActivity \
   >emulator-evidence/main-activity-start.txt 2>&1 || true
 sleep 8
-"$ADB" exec-out screencap -p >emulator-evidence/screen.png || true
+bounded 20 "$ADB" exec-out screencap -p >emulator-evidence/screen.png || true
 bounded 45 "$ADB" shell uiautomator dump /sdcard/dsha-window.xml >emulator-evidence/ui-dump.txt 2>&1 || true
-"$ADB" pull /sdcard/dsha-window.xml emulator-evidence/window.xml >/dev/null 2>&1 || true
-"$ADB" logcat -d -v threadtime -t 5500 >emulator-evidence/logcat.txt || true
+bounded 20 "$ADB" pull /sdcard/dsha-window.xml emulator-evidence/window.xml >/dev/null 2>&1 || true
+bounded 20 "$ADB" logcat -d -v threadtime -t 5500 >emulator-evidence/logcat.txt || true
 python3 - <<'PY'
 from pathlib import Path
 text=Path("emulator-evidence/logcat.txt").read_text(errors="replace")
