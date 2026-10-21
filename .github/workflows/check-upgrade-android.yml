@@ -6,6 +6,9 @@ on:
       - .github/workflows/check-upgrade-android.yml
       - app/build.gradle
       - gradle/verification-metadata.xml
+      - app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java
+      - app/src/test/java/com/deepseekharness/app/util/AdbWheelPathsTest.java
+      - app/src/test/java/com/deepseekharness/app/util/ManagedPatchRegistryIntegrationTest.java
   workflow_dispatch:
 
 permissions:
