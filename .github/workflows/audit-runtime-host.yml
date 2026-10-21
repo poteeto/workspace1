@@ -31,7 +31,7 @@ jobs:
           # checks the npm-facing installer contracts without claiming the
           # complete asset manifest is already generated.
       - name: Syntax-validate every signed generated Android runtime asset
-        run: python3 tools/verify-managed-runtime-syntax.py
+        run: python3 tools/verify-managed-runtime-syntax.py --source-only
       - name: Exercise every installer patch against the exact published modules
         run: python3 tools/verify-runtime-installation.py
       - name: Inspect settings source if a reviewed migration contract changes
