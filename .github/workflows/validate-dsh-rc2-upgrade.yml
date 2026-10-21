@@ -24,7 +24,9 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: Regenerate exact npm dependency lock for the pinned release
         working-directory: tools/dsh-runtime
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+        run: |
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Commit lockfile changes into upgrade branch
         run: |
           set -euo pipefail
