@@ -2,7 +2,7 @@
 
 > 范围：由 `poteeto/workspace1` 的 **main / build173** 源码和本工作分支逐文件核对。只描述仓库中能验证的实现，不把未跑的设备验收写成完成。本文用于后续 Android UI / Web UI / DSH 升级工作，避免重复全库扫描。
 >
-> UI 工作分支：`ui/deepseek-monochrome-and-architecture-map`（从 `main` 建立）；DSH 0.2.1-rc.2 升级分支 `upgrade/dsh-0.2.1-rc.2`、PR #2 **独立且未合并**，升级版的 Android APK 及老会话迁移尚未验收。
+> UI 来源分支：`ui/deepseek-monochrome-and-architecture-map`；已在升级分支 `upgrade/dsh-0.2.1-rc.2` 通过双父提交 `c8faf05` **合入**，保留原样式提交历史。`main` 与 UI PR #3 未动。升级 PR #2 尚为草稿；Debug APK 的构建不等于完成真机、覆盖签名及旧会话迁移验收。
 
 ## 1. 一张执行架构图
 
@@ -132,7 +132,7 @@ Android APK (com.dsh.client; :app; Java 17 / XML / Material3)
 1. 先确认本分支原生黑白 UI 与品牌矢量的资源正确性；执行 XML/aapt2 + Theme + 导航测试，再出测试 APK。
 2. 全量清点 Android 原生子页残留的硬编码蓝色与非语义色，改为统一 token；包括应急、插件、配置、备份及系统状态。
 3. 单独开 Web UI 子任务：收集聊天页真实截图，逐页梳理 `dsh-web-mobile` CSS、组件和动态补丁，复用设计 token 而不破坏交互。
-4. 将 UI 分支与尚未完成的 0.2.1-rc.2 升级分支做冲突/迁移审查，**先验证后合并**；不要为追版本号跳过老会话读写测试。
+4. UI 来源分支已合入升级分支且无路径冲突，后续仍须验收 Android 全套 UI 和旧会话读写，**验证完成前不要把升级 PR #2 合并进 main**。
 5. 最终统一检查应用图标、启动引导、主页、Web 会话、设置页面、系统通知、深浅主题，并验收真实设备。
 
 引用：`AGENTS.md`、`BUILD.md`、`docs/module-map.md`、`app/build.gradle`、`app/src/main/java`、`app/src/main/res`、`tools/dsh-runtime/package.json`、`tools/mobile-plugin-upstream.lock.json`。
