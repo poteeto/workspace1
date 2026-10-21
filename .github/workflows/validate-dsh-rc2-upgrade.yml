@@ -28,23 +28,6 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: Audit availability of every pinned npm dependency
         run: node tools/audit-dsh-published-packages.mjs
-      - name: Regenerate exact npm dependency lock for the pinned release
-        working-directory: tools/dsh-runtime
-        run: |
-          rm -f package-lock.json
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-      - name: Commit lockfile changes into upgrade branch
-        run: |
-          set -euo pipefail
-          git add tools/dsh-runtime/package-lock.json
-          if git diff --cached --quiet; then
-            echo 'Lockfile already matches.'
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "Lock DSH 0.2.1-rc.2 dependency graph"
-            git push origin HEAD:upgrade/dsh-0.2.1-rc.2
-          fi
       - name: Install release dependencies without running third-party scripts
         working-directory: tools/dsh-runtime
         run: npm ci --ignore-scripts --no-audit --no-fund
@@ -127,7 +110,7 @@ jobs:
             --source tools/dsh-runtime/node_modules \
             --output /tmp/dsha-upgraded-dsh-runtime.bin
       - name: Test deterministic runtime packaging and signed plugin policy
-        run: python3 -m unittest discover -s tools -p 'test-dsh-runtime-packaging.py' -v
+        run: python3 tools/test-dsh-runtime-packaging.py -v
       - name: Check package-specific Lexical migration against the created archive
         env:
           DSHA_TEST_RUNTIME: tools/dsh-runtime
