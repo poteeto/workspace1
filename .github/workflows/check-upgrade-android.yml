@@ -13,6 +13,9 @@ on:
       - app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java
       - app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java
       - app/src/main/java/com/deepseekharness/app/runtime/RuntimeLauncher.java
+      - app/src/main/java/com/deepseekharness/app/runtime/IsolatedInstallProcess.java
+      - app/src/main/java/com/deepseekharness/app/runtime/OwnedBirthEvidence.java
+      - app/src/test/java/com/deepseekharness/app/runtime/OwnedBirthEvidenceTest.java
       - app/src/main/java/com/deepseekharness/app/runtime/RuntimeExecution.java
       - app/src/main/java/com/deepseekharness/app/runtime/ColdToolsInstaller.java
       - app/src/main/java/com/deepseekharness/app/util/ColdInstallPlan.java
