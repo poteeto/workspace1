@@ -5,7 +5,7 @@ set -Eeuo pipefail
 mkdir -p emulator-evidence
 ADB="$ANDROID_HOME/platform-tools/adb"
 EMULATOR="$ANDROID_HOME/emulator/emulator"
-"$EMULATOR" -avd dsha-arm64 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 2048 -no-snapshot -wipe-data -verbose >emulator-evidence/emulator.log 2>&1 &
+"$EMULATOR" -avd dsha-arm64 -no-window -no-audio -no-boot-anim -gpu swiftshader -memory 2048 -no-snapshot -wipe-data -verbose >emulator-evidence/emulator.log 2>&1 &
 emulator_pid=$!
 cleanup(){
   "$ADB" logcat -d -v threadtime -t 3500 >emulator-evidence/logcat.txt 2>&1 || true
@@ -15,7 +15,23 @@ cleanup(){
   kill "$emulator_pid" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
-"$ADB" wait-for-device
+# adb wait-for-device can block forever if an ARM hypervisor fails at boot.
+device=0
+for _ in $(seq 1 120); do
+  if ! kill -0 "$emulator_pid" 2>/dev/null; then
+    echo "ANDROID_EMULATOR_PROCESS_EXITED_BEFORE_DEVICE"
+    tail -120 emulator-evidence/emulator.log || true
+    exit 1
+  fi
+  state=$("$ADB" get-state 2>/dev/null || true)
+  if [[ "$state" == device ]]; then device=1; break; fi
+  sleep 2
+done
+if [[ "$device" != 1 ]]; then
+  echo "ANDROID_EMULATOR_ADB_DEVICE_NOT_READY"
+  tail -120 emulator-evidence/emulator.log || true
+  exit 1
+fi
 ready=0
 for _ in $(seq 1 160); do
   boot=$("$ADB" shell getprop sys.boot_completed | tr -d '\r')
