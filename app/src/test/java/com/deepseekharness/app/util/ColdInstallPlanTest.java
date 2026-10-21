@@ -122,7 +122,7 @@ public class ColdInstallPlanTest {
           return mode == ColdInstallPlan.Mode.BXROOT
               ? result(78, false, true, "DSHA_ENGINE_CAPABILITY_UNSUPPORTED execveat")
               : result(0, false, true,
-                  ColdInstallPlan.PROBE_READY + "\\n" + ColdInstallPlan.INSTALL_READY);
+                  ColdInstallPlan.PROBE_READY + "\n" + ColdInstallPlan.INSTALL_READY);
         },
         (mode, probe, outcome) -> {});
     assertEquals(ColdInstallPlan.Mode.PROOT, selected);
