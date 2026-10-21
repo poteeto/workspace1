@@ -51,7 +51,7 @@ final class ColdToolsInstaller {
                       com.deepseekharness.app.util.UiText.format("检查离线安装运行方式：%s", mode.name()));
                   command =
                       com.deepseekharness.app.util.ColdInstallPlan.probeCommand(
-                          "/root/.dsha-cold-probe-" + java.util.UUID.randomUUID());
+                          "/root/.dsha-cold-probe-" + java.util.UUID.randomUUID(), mode);
                 } else {
                   if (!frozen.equals(packageFingerprint(boot, fs, hostRoot, slot)))
                     throw new IOException("COLD_PACKAGE_CHANGED");
@@ -154,7 +154,7 @@ final class ColdToolsInstaller {
                     com.deepseekharness.app.util.UiText.format("检查离线安装运行方式：%s", mode.name()));
                 String command =
                     com.deepseekharness.app.util.ColdInstallPlan.probeCommand(
-                            "/root/.dsha-cold-probe-" + java.util.UUID.randomUUID())
+                            "/root/.dsha-cold-probe-" + java.util.UUID.randomUUID(), mode)
                         + " && printf '\\nDSHA_UBUNTU_TOOLS_READY\\n'";
                 var result = collectColdCommand(boot, mode, command, 60_000);
                 return new com.deepseekharness.app.util.ColdInstallPlan.Observation(
