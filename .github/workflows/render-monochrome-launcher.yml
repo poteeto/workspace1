@@ -1,0 +1,47 @@
+name: Render monochrome DSHA launcher icons
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/render-monochrome-launcher.yml
+      - tools/generate-monochrome-launcher.py
+      - app/src/main/res/drawable/dsha_launcher_foreground.xml
+      - app/src/main/res/values/launcher_icon.xml
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install SVG renderer
+        run: python -m pip install 'cairosvg==2.7.1'
+      - name: Render all legacy icon density variants
+        run: |
+          python tools/generate-monochrome-launcher.py
+          python tools/generate-monochrome-launcher.py --check
+      - name: Commit changed launcher PNGs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add app/src/main/res/mipmap-*/ic_launcher*.png
+          if git diff --cached --quiet; then
+            echo "Icons already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Render 15 legacy launcher icons from official DeepSeek vector"
+          git push origin HEAD:main
