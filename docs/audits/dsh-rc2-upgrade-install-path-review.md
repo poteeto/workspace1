@@ -18,7 +18,7 @@
 
 1. `ColdToolsInstaller.modes` 不再调用 `boot.packageRuntime`，仅从本轮冻结的 `RuntimeHostPorts.engine` 获取已验证来源的运行引擎，再交给冷启动自己运行首次有界只读探针。
 2. `RuntimeLauncher.capable` 在且仅在显式 `coldMode`、`coldTrace`、匹配冻结的运行引擎、未开启普通硬链接模式的条件下，**不重复运行已经发布的 rootfs 资格探针**；真正业务命令仍按原逻辑执行。
-3. 为避免跳过 ABI/sycall 检查，`ColdInstallPlan.probeScript` 现在直接运行 `RuntimeCapabilityProbe.packages()`，在任何发布前实际测试 glibc、statx、execveat、ldconfig、dpkg、dpkg-deb 与 tar。
+3. 为避免跳过能力检查，`ColdInstallPlan.probeScript(Mode)` 按冻结运行引擎执行：**bxroot** 额外检验 glibc、statx、execveat，**proot** 则只检验运行及软件包工具能力（proot 本身可兼容模拟部分内核调用）。两者都检验 bash/Python/fsync、ldconfig、dpkg、dpkg-deb 与 tar；候选探针完成前绝不发布环境。
 4. 只有冷探针出现 **明确可验证、进程退出的能力拒绝**才允许 bxroot→proot 尝试；普通崩溃、超时、不确定终止或缺少确认结果都拒绝重放或发布。
 5. `RuntimeExecution.runtime` 仍保持已安装环境的安全限制，但遇错时提供经脱敏、限长的真实资格阶段原因，避免用户再次只看到完全不透明的泛用异常。
 6. `RuntimeLauncherTest` 与 `ColdInstallPlanTest` 新增回归，`tools/verify-cold-runtime-qualification.py` 额外把两个调用阶段的契约设为构建阻断条件。
