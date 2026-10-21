@@ -1,0 +1,45 @@
+name: Inspect upstream DSHA released APK assets
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths: [.github/workflows/probe-upstream-dsha-apk.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official DSHA rc2 APK and check upstream published SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://github.com/DSH-APP/DSHA/releases/download/v0.2.0-rc2/dsha-0.2.0-rc2.apk'
+          curl -fsSL --retry 2 "$base.sha256" -o /tmp/upstream.sha256
+          expected=$(awk '{print $1}' /tmp/upstream.sha256)
+          curl -fL --retry 2 "$base" -o /tmp/upstream.apk
+          actual=$(sha256sum /tmp/upstream.apk | awk '{print $1}')
+          test "$actual" = "$expected"
+          echo "UPSTREAM_APK_SHA256=$actual"
+      - name: Inspect mobile release resources and locked native library closures
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile,json,hashlib
+          f=Path('/tmp/upstream.apk')
+          z=zipfile.ZipFile(f)
+          lock=json.loads(Path('tools/bxroot/lock.json').read_text())
+          names={p.filename for p in z.infolist()}
+          print('APK entries',len(names))
+          wanted=set('lib/arm64-v8a/'+r['name'] for r in lock['artifacts'])
+          wanted|=set('assets/'+p for p in ('offline-rootfs.bin','dsh-runtime.bin','ubuntu-tools.bin','pnpm-runtime.bin','python-support.bin','adb-wheels.bin','glibc-python.bin','runtime-descriptor.json'))
+          for p in sorted(wanted):
+            if p not in names:print('ABSENT',p);continue
+            blob=z.read(p)
+            print('FOUND',p,'bytes=',len(blob),'sha256=',hashlib.sha256(blob).hexdigest())
+          other=[p for p in z.infolist() if p.filename.startswith(('assets/','lib/arm64-v8a/')) and p.file_size>1024*1024]
+          print('Large assets:')
+          for x in sorted(other,key=lambda i:-i.file_size)[:30]:print(x.filename,x.file_size)
+          PY
