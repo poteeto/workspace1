@@ -35,6 +35,8 @@ jobs:
         run: python3 tools/inspect-dsh-upgrade-changes.py
       - name: Audit all DSHA mobile overlay compatibility anchors
         run: python3 tools/audit-dsh-patches.py
+      - name: Audit PDF preview and URI bridge adapter source anchors
+        run: python3 tools/audit-dsh-pdf.py
       - name: Inspect updated Lexical styling implementation
         shell: bash
         run: |
