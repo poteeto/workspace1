@@ -5,11 +5,13 @@ android {
     namespace 'dev.chatgpt.splitinstaller'
     compileSdk 35
     defaultConfig {
-        applicationId 'dev.chatgpt.splitinstaller'
+        // v1 used a disposable build signing key. Give v2 a distinct app id to
+        // avoid a signature conflict with an already-installed v1 wrapper.
+        applicationId 'dev.chatgpt.splitinstaller.v2'
         minSdk 29
         targetSdk 35
-        versionCode 1
-        versionName '1.0'
+        versionCode 2
+        versionName '2.0'
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
