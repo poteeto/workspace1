@@ -103,9 +103,15 @@ def check_patch_registry():
         first=run(original)
         second=run(first)
         if first!=second:raise ValueError('non-idempotent chain '+path)
-        if first==original and not all(markers and all(m in original for m in markers)
-                                    for _,_,markers in recipes):
-            raise ValueError('unexpected pristine no-op '+path)
+        if first==original:
+            # Some modules (notably rc1 settings) are intentionally patched
+            # already by build-dsh-runtime.py before Android sees the tree.
+            already_applied = all(
+                (markers and all(m in original for m in markers))
+                or all(after in original for before,after in recipe_patches(spec))
+                for _,spec,markers in recipes)
+            if not already_applied:
+                raise ValueError('unexpected pristine no-op '+path)
         checks+=sum(len(spec['patches']) for _,spec,_ in recipes)
     return f'{len(ids)} complete recipe chains, {checks} anchor substitutions, all idempotent'
 
@@ -135,7 +141,9 @@ def check_client_combos():
     again=updated
     for before,after in recipe_patches(spec):
         again=exact(again,before,after)
-    if updated!=again or updated==s:raise ValueError('combo idempotence or no-op')
+    if updated!=again:raise ValueError('combo not idempotent')
+    if updated==s and not all(after in s for before,after in recipe_patches(spec)):
+        raise ValueError('combo unexpectedly not applied')
     for path in ['client-combo-cache/index.js','client-combo-cache/package.json']:
         if not (ASSETS/path).is_file():raise ValueError('missing combo-cache '+path)
     return f'{len(spec["patches"])} combo substitutions, cache assets, repeated run stable'
