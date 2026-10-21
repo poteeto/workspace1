@@ -160,7 +160,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v175-POSTINSTALL-AUDITED
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v176-COLD-QUALIFIED
           path: app/build/outputs/apk/standard/debug/*.apk
           compression-level: 0
           retention-days: 14
