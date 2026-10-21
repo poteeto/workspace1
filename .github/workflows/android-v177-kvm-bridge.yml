@@ -28,7 +28,17 @@ jobs:
         run: |
           set -euo pipefail
           { yes || true; } | sdkmanager --install 'emulator' 'platform-tools' 'system-images;android-35;google_apis;x86_64'
-          echo no | avdmanager create avd -n dsha-kvm -k 'system-images;android-35;google_apis;x86_64' -d pixel_7
+          mkdir -p "$HOME/.android/avd"
+          # Avoid avdmanager writing to an action-specific ANDROID_SDK_HOME.
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          echo no | avdmanager create avd -n dsha-kvm -k 'system-images;android-35;google_apis;x86_64' -d pixel_7 -p "$ANDROID_AVD_HOME/dsha-kvm.avd" --force
+          test -f "$ANDROID_AVD_HOME/dsha-kvm.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -list-avds | tee android-avd-list.txt
+          grep -qx dsha-kvm android-avd-list.txt
+      - name: Keep AVD home consistent with the previous job step
+        run: |
+          mkdir -p "$HOME/.android/avd"
+          ls -la "$HOME/.android/avd"
       - uses: actions/download-artifact@v4
         with:
           name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v177-ANDROID-BIRTH
