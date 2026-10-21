@@ -404,19 +404,23 @@ final class RuntimeTools {
     if (Compat.isSymbolicLink(module)
         || !module.getCanonicalPath().startsWith(rootfs.getCanonicalPath() + File.separator))
       throw new IOException("LAN_SETTINGS_MODULE_PATH");
+    File dshPackage = new File(rootfs, "usr/local/lib/node_modules/@deepseek-ai/dsh/package.json");
+    if (!dshPackage.isFile()
+        || Compat.isSymbolicLink(dshPackage)
+        || !dshPackage.getCanonicalPath().startsWith(rootfs.getCanonicalPath() + File.separator))
+      throw new IOException("LAN_SETTINGS_DSH_PACKAGE_UNSAFE");
+    String version = fileObject(dshPackage).optString("version");
     String source = Compat.readAll(module);
     try {
       String patched =
-          com.deepseekharness.app.util.ExactTextPatch.apply(
-              source,
-              "const persistence = ctx.remote.$host.isLoopback ? \"host\" : \"memory\";",
-              "const persistence = \"host\"; // DSHA patch: LAN 代理场景强制 host 持久化");
+          com.deepseekharness.app.util.LanSettingsCompatibility.adapt(source, version);
       preparedFiles.add(module);
       if (!source.equals(patched))
         writeIfChanged(
             context, module, patched.getBytes(java.nio.charset.StandardCharsets.UTF_8), false);
     } catch (IllegalArgumentException error) {
-      throw new IOException("LAN_SETTINGS_PATCH_MISMATCH", error);
+      throw new IOException("LAN_SETTINGS_PATCH_MISMATCH: version=" + version
+          + ", reason=" + error.getMessage(), error);
     }
   }
 
