@@ -22,8 +22,14 @@ def main(apk):
     with zipfile.ZipFile(apk) as archive:
         for name in required:
             raw=archive.read('assets/'+name)
-            expected=descriptor['inputs'].get(name)
-            if expected!=sha(raw):raise ValueError('BASELINE_ASSET_HASH:'+name)
+            if name=='offline-rootfs.bin':
+                lock=json.loads((ROOT/'tools/recovery-runtime/lock.json').read_text())
+                expected=next(r['sha256'] for r in lock['archives'] if r['asset']=='recovery-rootfs.bin')
+            elif name=='ubuntu-tools.bin':
+                manifest=json.loads((ASSETS/'ubuntu-tools.manifest.json').read_text())
+                expected=manifest['archiveSha256']
+            else:raise AssertionError(name)
+            if expected!=sha(raw):raise ValueError('BASELINE_RELEASE_ASSET_HASH:'+name)
             target=ASSETS/name
             if target.is_symlink() or target.exists() and sha(target.read_bytes())!=expected:
                 raise ValueError('UNEXPECTED_ASSET_PREEXISTS:'+name)
