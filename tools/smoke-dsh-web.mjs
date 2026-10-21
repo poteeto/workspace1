@@ -136,6 +136,8 @@ try {
     throw new Error("DSH_WEB_NOT_HTTP_READY in " + Math.round((Date.now() - started) / 1000) +
       "s (attempts=" + attempt + ", last=" + lastError + ")\n" + redact(logs.join("")));
   }
+  console.log("DSH_PROCESS_HTTP_READY status=" + outcome.status + " htmlBytes=" +
+    Buffer.byteLength(outcome.body) + " uptimeSeconds=" + ((Date.now()-started)/1000).toFixed(1));
   const script = outcome.body.match(/<script[^>]+src=["']([^"']+)["']/i);
   let staticOutcome = "NO_EXTERNAL_SCRIPT_TAG";
   if (script) {
@@ -147,7 +149,11 @@ try {
     });
     const bytes = Buffer.from(await resp.arrayBuffer());
     if (!resp.ok || bytes.length < 16) {
-      throw new Error("DSH_STATIC_ASSET_NOT_SERVABLE status=" + resp.status + " bytes=" + bytes.length);
+      throw new Error("DSH_STATIC_ASSET_NOT_SERVABLE status=" + resp.status +
+        " bytes=" + bytes.length +
+        " requestedPath=" + redact(assetUrl.pathname) +
+        " htmlHead=" + redact(outcome.body.slice(0, 1200)) +
+        " contentType=" + (resp.headers.get("content-type") || "-"));
     }
     staticOutcome = "HTTP_" + resp.status + " bytes=" + bytes.length;
   }
