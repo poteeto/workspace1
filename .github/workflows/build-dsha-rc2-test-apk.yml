@@ -1,0 +1,126 @@
+name: Build isolated DSHA rc2 Android test APK
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths: [.github/workflows/build-dsha-rc2-test-apk.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  test-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: original
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - name: Install pinned Java 17, Android SDK, and gcc-arm64
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Prepare source-pinned toolchains
+        shell: bash
+        run: |
+          set -euo pipefail
+          platform=$(python3 tools/ci-toolchain.py --field androidPlatform)
+          buildtools=$(python3 tools/ci-toolchain.py --field buildTools)
+          ndk=$(python3 tools/ci-toolchain.py --field ndk)
+          sdkmanager "platforms;$platform" "build-tools;$buildtools" "ndk;$ndk"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-13-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-dev-arm64-cross
+      - name: Restore immutable baseline Ubuntu assets from checksum-verified official APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://github.com/DSH-APP/DSHA/releases/download/v0.2.0-rc2/dsha-0.2.0-rc2.apk'
+          curl -fLsS --retry 2 "$url" -o "$RUNNER_TEMP/upstream-rc2.apk"
+          python3 tools/ci-restore-upstream-base.py "$RUNNER_TEMP/upstream-rc2.apk"
+      - name: Rebuild source-locked native bxroot executables
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B tools/bxroot/build.py --prepare-source "$RUNNER_TEMP/bxroot-src"
+          (cd "$RUNNER_TEMP/bxroot-src" && BXROOT_OUTPUT="$RUNNER_TEMP/bxroot-bin" sh "$GITHUB_WORKSPACE/tools/bxroot/build-linux.sh")
+          cp "$RUNNER_TEMP/bxroot-bin/"libbxroot*.so app/src/main/jniLibs/arm64-v8a/
+          python3 -B tools/bxroot/build.py --check
+      - name: Install upgraded DSH dependencies for real target Linux ARM64
+        shell: bash
+        working-directory: tools/dsh-runtime
+        run: npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund
+      - name: Materialize DSH 0.2.1-rc.2 immutable offline runtime
+        run: |
+          python3 tools/audit-dsh-patches.py
+          python3 tools/audit-dsh-pdf.py
+          python3 tools/build-dsh-runtime.py \
+            --source tools/dsh-runtime/node_modules \
+            --output app/src/main/assets/dsh-runtime.bin
+      - name: Build frozen recovery runtime from original 0.2.0-rc.2 sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd original/tools/dsh-runtime && npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund)
+          (cd original && python3 tools/build-dsh-runtime.py \
+            --source tools/dsh-runtime/node_modules \
+            --output "$RUNNER_TEMP/recovery-dsh-runtime.bin")
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+          lockfile=Path('tools/recovery-runtime/lock.json')
+          lock=json.loads(lockfile.read_text())
+          source=Path(os.environ['RUNNER_TEMP'])/'recovery-dsh-runtime.bin'
+          old=next(row for row in lock['archives'] if row['asset']=='recovery-dsh-runtime.bin')
+          # CI candidate only: do not mutate the checked-in emergency snapshot.
+          # The old frozen package is independently constructed from main;
+          # record its actual SHA for this isolated install experiment.
+          old['sha256']=digest(source)
+          lockfile.write_text(json.dumps(lock,indent=2)+'\n')
+          dest=Path('tools/recovery-runtime/archives')
+          dest.mkdir(parents=True,exist_ok=True)
+          (dest/'recovery-dsh-runtime.bin').write_bytes(source.read_bytes())
+          rootfs=Path('app/src/main/assets/offline-rootfs.bin')
+          (dest/'recovery-rootfs.bin').write_bytes(rootfs.read_bytes())
+          print('EXPERIMENTAL_RECOVERY_OLD_VERSION',lock['dshVersion'],old['sha256'])
+          PY
+      - name: Refresh provenance for target-specific packages without weakening policy
+        run: |
+          python3 tools/prepare-backup-assets.py --write
+          python3 tools/generate-third-party-notices.py
+          python3 tools/prepare-runtime-descriptor.py --write
+          python3 tools/prepare-runtime-descriptor.py --check
+      - name: Build fully bundled Standard debug APK
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleStandardDebug --no-daemon --max-workers=2
+      - name: Verify test APK DSH version and launch assets
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import zipfile,hashlib,json
+          from pathlib import Path
+          apks=list(Path('app/build/outputs/apk/standard/debug').glob('*.apk'))
+          if len(apks)!=1:raise SystemExit('EXPECTED_ONE_COMPLETE_DEBUG_APK')
+          apk=apks[0]
+          with zipfile.ZipFile(apk) as z:
+            a={i.filename for i in z.infolist()}
+            if 'assets/dsh-runtime.bin' not in a or 'assets/offline-rootfs.bin' not in a:
+              raise SystemExit('APK_MISSING_OFFLINE_LINUX')
+            ver=json.loads(z.read('assets/runtime-descriptor.json'))['dshVersion']
+            if ver!='0.2.1-rc.2':raise SystemExit('APK_OLD_DSH_VERSION:'+ver)
+            print('VALIDATED_DEBUG_APK',apk,apk.stat().st_size,hashlib.sha256(apk.read_bytes()).hexdigest(),'dsh',ver)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: DSHA-0.2.1-rc2-ARM64-EXPERIMENTAL-DEBUG
+          path: app/build/outputs/apk/standard/debug/*.apk
+          compression-level: 0
+          retention-days: 14
