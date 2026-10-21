@@ -127,8 +127,8 @@ def check_pdf():
     current=exact(current,before,'new Blob(['+json.dumps(compatibility+'\n',ensure_ascii=False)+', _dsh_pdf_worker_default,')
     source=module(spec['resourceModule'])
     transformed=exact(source,spec['resourceBefore'],spec['resourceAfter'])
-    if 'DSHA_PDF_COMPAT_V1' not in current or transformed==source:
-        raise ValueError('PDF patch not applied')
+    if 'DSHA_PDF_COMPAT_V1' not in current or spec['resourceAfter'] not in transformed:
+        raise ValueError('PDF patch not present or not idempotent')
     return 'client PDF, Worker and resource protocol anchors'
 
 def check_client_combos():
