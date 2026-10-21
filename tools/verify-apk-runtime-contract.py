@@ -26,6 +26,13 @@ def main():
     args=parser.parse_args()
     if not args.apk.is_file():raise SystemExit('APK_NOT_FOUND')
     source=json.loads((ASSETS/'runtime-descriptor.json').read_text(encoding='utf8'))
+    deployment=json.loads((ROOT/'tools/asset-deployment.json').read_text(encoding='utf8'))
+    renamed=deployment.get('sourceTransforms',{})
+    # The asset builder copies gzip source bytes to .bin names to prevent AAPT
+    # transparent gzip decompression. The SHA-256 must still match precisely.
+    allowed={'glibc-python.tar.gz':'glibc-python.bin',
+             'adb-wheels.tar.gz':'adb-wheels.bin'}
+    if renamed!=allowed:raise SystemExit('APK_SOURCE_TRANSFORMS_CHANGED')
     with zipfile.ZipFile(args.apk) as apk:
         names=apk.namelist()
         if len(names)!=len(set(names)):raise SystemExit('APK_DUPLICATE_ZIP_ENTRY')
@@ -38,20 +45,29 @@ def main():
         if manifest.get('schema')!=1:raise SystemExit('APK_MANAGED_INPUT_SCHEMA')
         installed={e['asset'] for e in manifest['installs']}
         if not installed.issubset(receipts):raise SystemExit('APK_INSTALL_ASSETS_NOT_IN_DESCRIPTOR')
+        missing=[]
+        verified=0
+        remapped=[]
         for name,want in sorted(receipts.items()):
             if name.startswith('/') or '..' in Path(name).parts or '\\' in name:
                 raise SystemExit('APK_UNSAFE_RECEIPT_NAME:'+name)
-            member='assets/'+name
-            if member not in names:raise SystemExit('APK_MANAGED_ASSET_MISSING:'+name)
+            packed=renamed.get(name,name)
+            member='assets/'+packed
+            if member not in names:
+                missing.append(name)
+                continue
+            if packed!=name:remapped.append((name,packed))
             if not isinstance(want,str) or len(want)!=64:raise SystemExit('APK_INVALID_MANAGED_HASH:'+name)
             with apk.open(member) as stream:
                 actual=sha_stream(stream)
             if want!=actual:raise SystemExit('APK_MANAGED_ASSET_BYTE_MISMATCH:'+name)
+            verified+=1
+        if missing:raise SystemExit('APK_MANAGED_ASSETS_MISSING:'+repr(missing))
         mandatory=('dsh-runtime.bin','offline-rootfs.bin','ubuntu-tools.bin')
         if any(x not in receipts for x in mandatory):
             raise SystemExit('APK_LINUX_DSH_ASSET_NOT_CHECKSUM_PINNED')
-        print('APK_BYTE_CONTRACT_PASS',len(receipts),'files',len(installed),
-              'managed installer targets, runtimeId',embedded['runtimeId'],
+        print('APK_BYTE_CONTRACT_PASS',verified,'files',len(installed),
+              'managed installer targets, renamed source archives',repr(remapped),'runtimeId',embedded['runtimeId'],
               'dshVersion',embedded['dshVersion'])
 if __name__=='__main__':
     main()
