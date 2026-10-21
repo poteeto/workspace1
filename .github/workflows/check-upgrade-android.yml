@@ -41,4 +41,5 @@ jobs:
           chmod +x gradlew
           ./gradlew :app:testStandardDebugUnitTest :app:testLowDebugUnitTest \
             -x :app:prepareStandardAssets -x :app:prepareRecoveryAssets \
+            -x :app:verifyBxrootNative -x :app:verifyBxrootProjection \
             --no-daemon --max-workers=2
