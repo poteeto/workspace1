@@ -68,6 +68,7 @@ public class ExtractActivity extends AppCompatActivity {
     enter.setAllCaps(false);
     content.addView(retry, new LinearLayout.LayoutParams(-1, -2));
     content.addView(enter, new LinearLayout.LayoutParams(-1, -2));
+    if (com.deepseekharness.app.BuildConfig.BUNDLED_LEGACY_RECOVERY) {
     Button emergency = new androidx.appcompat.widget.AppCompatButton(this);
     emergency.setText(
         com.deepseekharness.app.util.UiText.choose("启动应急 DSH", "Start emergency DSH"));
@@ -77,6 +78,8 @@ public class ExtractActivity extends AppCompatActivity {
     emergency.setAllCaps(false);
     emergency.setOnClickListener(v -> startActivity(new Intent(this, RecoveryActivity.class)));
     content.addView(emergency, new LinearLayout.LayoutParams(-1, -2));
+    }
+
     Button logs = new androidx.appcompat.widget.AppCompatButton(this);
     logs.setText(com.deepseekharness.app.util.UiText.choose("查看本次维护记录", "View maintenance record"));
     logs.setOnClickListener(v -> startActivity(DiagnosticActivity.downloadLogs(this)));
