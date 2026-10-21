@@ -22,6 +22,8 @@ jobs:
           ls -l /dev/kvm
           sudo chmod 666 /dev/kvm
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install Android 15 x86_64 Google APIs image
         run: |
           set -euo pipefail
