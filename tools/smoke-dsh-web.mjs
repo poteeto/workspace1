@@ -141,7 +141,14 @@ try {
   const script = outcome.body.match(/<script[^>]+src=["']([^"']+)["']/i);
   let staticOutcome = "NO_EXTERNAL_SCRIPT_TAG";
   if (script) {
-    const assetUrl = new URL(script[1], outcome.url);
+    // HTML attributes are entity-escaped. Browsers decode &amp; to & when
+    // resolving a <script src>; the Node harness must do the same before GET.
+    // Without this, the ?module&rev= URL is sent as ?module&amp;rev=
+    // and DSH (correctly) returns HTTP 404. This was a harness bug, not
+    // evidence that the published DSH frontend file was missing.
+    const decodedSrc = script[1].replaceAll("&amp;", "&").replaceAll("&#38;", "&")
+      .replaceAll("&quot;", '"').replaceAll("&#39;", "'");
+    const assetUrl = new URL(decodedSrc, outcome.url);
     if (assetUrl.origin !== origin) throw new Error("UNTRUSTED_SCRIPT_ORIGIN");
     console.log("DSH_STATIC_REQUEST path=" + assetUrl.pathname +
       " queryKeys=" + [...assetUrl.searchParams.keys()].join(",") +
