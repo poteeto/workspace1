@@ -5,7 +5,7 @@ concurrency:
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
-    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/build.gradle, app/src/main/res/**, app/src/main/java/com/deepseekharness/app/ui/**, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeLauncher.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeExecution.java, app/src/main/java/com/deepseekharness/app/runtime/ColdToolsInstaller.java, app/src/main/java/com/deepseekharness/app/util/ColdInstallPlan.java, app/src/test/java/com/deepseekharness/app/runtime/RuntimeLauncherTest.java, app/src/test/java/com/deepseekharness/app/util/ColdInstallPlanTest.java, app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java, tools/verify-runtime-installation.py, tools/verify-runtime-archive.py, tools/verify-managed-runtime-syntax.py, tools/verify-apk-runtime-contract.py, tools/verify-cold-runtime-qualification.py, app/src/main/assets/runtime-patches.json, tools/report-apk-size.py, tools/verify-monochrome-ui.py, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
+    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/build.gradle, app/src/main/res/**, app/src/main/java/com/deepseekharness/app/ui/**, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeLauncher.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeExecution.java, app/src/main/java/com/deepseekharness/app/runtime/ColdToolsInstaller.java, app/src/main/java/com/deepseekharness/app/runtime/IsolatedInstallProcess.java, app/src/main/java/com/deepseekharness/app/runtime/OwnedBirthEvidence.java, app/src/androidTest/java/com/deepseekharness/app/runtime/OwnedBirthAndroidInstrumentation.java, app/src/main/java/com/deepseekharness/app/util/ColdInstallPlan.java, app/src/test/java/com/deepseekharness/app/runtime/RuntimeLauncherTest.java, app/src/test/java/com/deepseekharness/app/util/ColdInstallPlanTest.java, app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java, tools/verify-runtime-installation.py, tools/verify-runtime-archive.py, tools/verify-managed-runtime-syntax.py, tools/verify-apk-runtime-contract.py, tools/verify-cold-runtime-qualification.py, app/src/main/assets/runtime-patches.json, tools/report-apk-size.py, tools/verify-monochrome-ui.py, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -100,6 +100,11 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew :app:assembleStandardDebug --no-daemon --max-workers=2
+      - name: Assemble standalone Android kernel-peer instrumentation
+        shell: bash
+        run: |
+          ./gradlew :app:assembleStandardDebugAndroidTest --no-daemon --max-workers=2 \
+            -Pdsha.testRunner=com.deepseekharness.app.runtime.OwnedBirthAndroidInstrumentation
       - name: Verify test APK DSH version and launch assets
         shell: bash
         run: |
@@ -160,7 +165,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v176-COLD-QUALIFIED
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v177-ANDROID-BIRTH
           path: app/build/outputs/apk/standard/debug/*.apk
           compression-level: 0
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: DSHA-v177-ARM64-KERNEL-BIRTH-ANDROIDTEST
+          path: app/build/outputs/apk/androidTest/standard/debug/*.apk
+          if-no-files-found: error
           retention-days: 14
