@@ -35,6 +35,6 @@ jobs:
           fi
           git merge --allow-unrelated-histories --no-ff -s ours \
             -m "Track DSHA upstream commit $upstream" "$upstream"
-          git checkout "$upstream" -- .
+          git checkout "$upstream" -- . ':(exclude).github/workflows/**'
           git commit -m "Import DSHA source snapshot ($upstream)"
           git push origin HEAD:main
