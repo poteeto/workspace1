@@ -143,6 +143,9 @@ try {
   if (script) {
     const assetUrl = new URL(script[1], outcome.url);
     if (assetUrl.origin !== origin) throw new Error("UNTRUSTED_SCRIPT_ORIGIN");
+    console.log("DSH_STATIC_REQUEST path=" + assetUrl.pathname +
+      " queryKeys=" + [...assetUrl.searchParams.keys()].join(",") +
+      " cookiePresent=" + Boolean(outcome.cookie));
     const resp = await fetch(assetUrl, {
       headers: outcome.cookie ? { cookie: outcome.cookie } : {},
       signal: AbortSignal.timeout(6000),
