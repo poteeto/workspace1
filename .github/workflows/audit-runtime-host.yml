@@ -5,6 +5,8 @@ on:
     paths:
       - .github/workflows/audit-runtime-host.yml
       - tools/audit-runtime-postinstall.py
+      - tools/verify-runtime-installation.py
+      - app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java
       - app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java
       - app/src/main/assets/runtime-patches.json
   workflow_dispatch:
@@ -20,5 +22,8 @@ jobs:
       - name: Install exact DSH linux-arm64 package graph
         working-directory: tools/dsh-runtime
         run: npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund
-      - name: Compare published settings runtime against Java patch anchors
+      - name: Exercise every installer patch against the exact published modules
+        run: python3 tools/verify-runtime-installation.py
+      - name: Inspect settings source if a reviewed migration contract changes
+        if: failure()
         run: python3 tools/audit-runtime-postinstall.py
