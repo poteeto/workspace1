@@ -28,3 +28,29 @@ for p in patterns:
     for i in offsets[:8]:
         print(' ',repr(code[max(0,i-190):min(len(code),i+260)]))
 print('SETTINGS_SOURCE',len(code),'bytes')
+
+print('SETTINGS_CLIENT_HEAD',repr(code[:1700]))
+for term in ('storage','Storage','persist','Persist','context','settings','Settings','save','Save','remote','Remote','schema','Schema'):
+    offsets=[];start=0
+    while True:
+        at=code.find(term,start)
+        if at<0:break
+        offsets.append(at);start=at+len(term)
+    print('SETTINGS_RELATED_TOKEN',term,len(offsets))
+    for off in offsets[:7]:
+        print(' ',repr(code[max(0,off-95):min(len(code),off+180)]))
+print('FIND_SETTINGS_PERSISTENCE_ACROSS_ALL_PUBLISHED_MODULES')
+patterns=('isLoopback ? "host"','const persistence =','persistence: "host"','localStorage','sessionStorage','persistence =','settingsStorage')
+scoped=deps/'@deepseek-ai'
+results=[]
+for path in scoped.glob('*/lib/*.js'):
+    try:
+        if path.stat().st_size>1500000:continue
+        source=path.read_text(errors='replace')
+    except OSError:continue
+    matches=[(p,source.find(p)) for p in patterns if p in source]
+    if matches:
+        results.append((path.relative_to(deps).as_posix(),[(term,source[max(0,i-85):i+210]) for term,i in matches]))
+for path,match in results[:55]:
+    print('CROSS_MODULE_STORAGE',path,repr(match))
+print('CROSS_MODULE_COUNT',len(results))
