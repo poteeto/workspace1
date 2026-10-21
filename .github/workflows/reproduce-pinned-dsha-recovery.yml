@@ -18,7 +18,7 @@ jobs:
         with: {node-version: '24'}
       - name: Install original exact pinned DSH rc2 npm tree
         working-directory: original/tools/dsh-runtime
-        run: npm ci --ignore-scripts --no-audit --no-fund
+        run: npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund
       - name: Reproduce old Android runtime from original unchanged release recipe
         working-directory: original
         run: |
