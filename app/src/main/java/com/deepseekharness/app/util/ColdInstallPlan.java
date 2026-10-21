@@ -185,7 +185,11 @@ public final class ColdInstallPlan {
                 + "assert open(p,'rb').read()==b'DSHA_COLD_VERIFIED'; assert hashlib.sha256(b'probe').digest(); "
                 + "assert sqlite3.sqlite_version; assert ssl.OPENSSL_VERSION")
         + " \"$probe/plain\"\n"
-        + RuntimeCapabilityProbe.packageTools()
+        // Cold-install owns the real bounded read-only engine qualification. The
+        // previous installed-root preflight ran too early, aborting before
+        // this proof was allowed to run. Prove glibc/statx/execveat and all
+        // package tools here, before permitting the configured overlay.
+        + RuntimeCapabilityProbe.packages()
         + "\n"
         + "printf '\\n"
         + PROBE_READY
