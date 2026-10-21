@@ -91,6 +91,7 @@ jobs:
           PY
       - name: Refresh provenance for target-specific packages without weakening policy
         run: |
+          python3 tools/pc-migration/prepare-assets.py --output app/src/main/assets
           python3 tools/prepare-backup-assets.py --write
           python3 tools/generate-third-party-notices.py
           python3 tools/prepare-runtime-descriptor.py --write
