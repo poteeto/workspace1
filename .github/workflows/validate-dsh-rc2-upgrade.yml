@@ -104,6 +104,22 @@ jobs:
           if broken:
             raise SystemExit('Existing version-specific Android patches need porting: ' + ', '.join(broken))
           PY
+      - name: Inspect rc2 session backend tracker layout
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          f = Path('tools/dsh-runtime/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js')
+          rows = f.read_text().splitlines()
+          matches = [i for i,s in enumerate(rows) if 'tracker' in s or 'JsonlBackendTracker' in s]
+          print('Tracker matches:',len(matches))
+          printed=set()
+          for k in matches[:18]:
+            for j in range(max(k-2,0),min(k+4,len(rows))):
+              if j not in printed:
+                print(f'{j+1}: {rows[j]}')
+                printed.add(j)
+          PY
       - name: Build DSH Linux runtime archive with guarded DSHA patches
         shell: bash
         run: |
