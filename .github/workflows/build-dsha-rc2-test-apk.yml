@@ -5,7 +5,7 @@ concurrency:
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
-    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/build.gradle, app/src/main/res/**, app/src/main/java/com/deepseekharness/app/ui/**, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeLauncher.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeExecution.java, app/src/main/java/com/deepseekharness/app/runtime/ColdToolsInstaller.java, app/src/main/java/com/deepseekharness/app/util/ColdInstallPlan.java, app/src/test/java/com/deepseekharness/app/runtime/RuntimeLauncherTest.java, app/src/test/java/com/deepseekharness/app/util/ColdInstallPlanTest.java, app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java, tools/verify-runtime-installation.py, tools/verify-runtime-archive.py, tools/verify-managed-runtime-syntax.py, tools/verify-apk-runtime-contract.py, app/src/main/assets/runtime-patches.json, tools/report-apk-size.py, tools/verify-monochrome-ui.py, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
+    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/build.gradle, app/src/main/res/**, app/src/main/java/com/deepseekharness/app/ui/**, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeLauncher.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeExecution.java, app/src/main/java/com/deepseekharness/app/runtime/ColdToolsInstaller.java, app/src/main/java/com/deepseekharness/app/util/ColdInstallPlan.java, app/src/test/java/com/deepseekharness/app/runtime/RuntimeLauncherTest.java, app/src/test/java/com/deepseekharness/app/util/ColdInstallPlanTest.java, app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java, tools/verify-runtime-installation.py, tools/verify-runtime-archive.py, tools/verify-managed-runtime-syntax.py, tools/verify-apk-runtime-contract.py, tools/verify-cold-runtime-qualification.py, app/src/main/assets/runtime-patches.json, tools/report-apk-size.py, tools/verify-monochrome-ui.py, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -14,6 +14,8 @@ jobs:
     timeout-minutes: 110
     steps:
       - uses: actions/checkout@v4
+      - name: Check cold-install capability qualification is correctly sequenced
+        run: python3 tools/verify-cold-runtime-qualification.py
       - uses: actions/setup-node@v4
         with: {node-version: '24'}
       - name: Install pinned Java 17, Android SDK, and gcc-arm64
