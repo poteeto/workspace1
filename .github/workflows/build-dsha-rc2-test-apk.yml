@@ -2,7 +2,7 @@ name: Build isolated DSHA rc2 Android test APK
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
-    paths: [.github/workflows/build-dsha-rc2-test-apk.yml]
+    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, tools/ci-restore-upstream-base.py]
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
