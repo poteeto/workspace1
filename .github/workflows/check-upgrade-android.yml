@@ -7,6 +7,9 @@ on:
       - app/build.gradle
       - gradle/verification-metadata.xml
       - app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java
+      - app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java
+      - app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java
+      - app/src/test/java/com/deepseekharness/app/util/LanSettingsCompatibilityTest.java
       - app/src/test/java/com/deepseekharness/app/util/AdbWheelPathsTest.java
       - app/src/test/java/com/deepseekharness/app/util/ManagedPatchRegistryIntegrationTest.java
   workflow_dispatch:
@@ -44,7 +47,12 @@ jobs:
           ndk=$(python3 tools/ci-toolchain.py --field ndk)
           sdkmanager "ndk;$ndk"
           python3 tools/bxroot/build.py --help
+      - name: Install exact published npm module for real JVM adapter regression
+        working-directory: tools/dsh-runtime
+        run: npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund
       - name: Compile and test both Android variants without offline release assets
+        env:
+          DSHA_REAL_DSH_SETTINGS_MODULE: ${{ github.workspace }}/tools/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-settings/lib/client.js
         shell: bash
         run: |
           chmod +x gradlew
