@@ -104,7 +104,7 @@ jobs:
           target = json.loads(Path("tools/dsh-runtime/package.json").read_text())["dependencies"]["@deepseek-ai/dsh"]
           registry = json.loads(Path("app/src/main/assets/runtime-patches.json").read_text())
           source = Path("app/src/main/java/com/deepseekharness/app/util/Constants.java").read_text()
-          found = re.search(r'DSH_VERSION\\s*=\\s*"([^"]+)"', source)
+          found = re.search(r'DSH_VERSION\s*=\s*"([^"]+)"', source)
           if not found or found.group(1) != target or registry["dshVersion"] != target:
               raise SystemExit("ANDROID_DSH_REGISTRY_VERSION_MISMATCH: " + repr((found.group(1) if found else None, registry["dshVersion"], target)))
           for entry in registry["active"]:
