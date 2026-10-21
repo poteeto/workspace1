@@ -13,7 +13,7 @@ except subprocess.TimeoutExpired:
  print("ANDROID_ADB_COMMAND_TIMEOUT",sys.argv[2:],flush=True)
  sys.exit(124)' "$seconds" "$@"
 }
-"$EMULATOR" -avd dsha-arm64 -no-window -no-audio -no-boot-anim -gpu swiftshader -memory 2048 -no-snapshot -wipe-data >emulator-evidence/emulator.log 2>&1 &
+"$EMULATOR" -avd dsha-arm64 -no-window -no-audio -no-boot-anim -gpu swiftshader -accel off -memory 2048 -no-snapshot -wipe-data >emulator-evidence/emulator.log 2>&1 &
 emulator_pid=$!
 cleanup() {
   bounded 20 "$ADB" logcat -d -v threadtime -t 5500 >emulator-evidence/logcat.txt 2>&1 || true
