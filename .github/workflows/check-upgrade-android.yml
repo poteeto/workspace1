@@ -26,6 +26,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ steps.toolchain.outputs.node }}
+      - uses: android-actions/setup-android@v3
       - name: Install required Android SDK tools
         shell: bash
         run: |
