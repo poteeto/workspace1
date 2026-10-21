@@ -35,6 +35,27 @@ public final class RecoveryActivity extends AppCompatActivity {
   @Override
   protected void onCreate(Bundle saved) {
     super.onCreate(saved);
+    if (!com.deepseekharness.app.BuildConfig.BUNDLED_LEGACY_RECOVERY) {
+      page = new CardPage(this, t("维护与数据救援", "Maintenance and data rescue"), "");
+      setContentView(page.root);
+      LinearLayout notice = page.card();
+      notice.addView(page.text(
+          t("此精简版不包含旧版 DSH 离线应急环境。可继续导出日志、备份数据，或返回运行环境维护页修复当前版本。不会清除个人数据。",
+            "This slim build does not bundle a separate old DSH environment. You can export logs, back up data, or repair the current runtime. Personal data is not cleared."),
+          14, R.color.text_secondary));
+      page.button(page.content,
+          t("查看并导出诊断日志", "View and export diagnostic logs"),
+          false, () -> startActivity(DiagnosticActivity.downloadLogs(this)));
+      page.button(page.content,
+          t("备份与保留数据", "Backups and retained data"),
+          false, () -> startActivity(new Intent(this, NativeDataActivity.class)));
+      page.button(page.content,
+          t("运行环境维护", "Runtime maintenance"),
+          true, () -> startActivity(
+              new Intent(this, ExtractActivity.class).putExtra("review_only", true)));
+      page.button(page.footer, t("返回", "Back"), false, this::finish);
+      return;
+    }
     controller = RecoveryController.get(this);
     page = new CardPage(this, t("应急 DSH", "Emergency DSH"), "");
     setContentView(page.root);
@@ -460,6 +481,7 @@ public final class RecoveryActivity extends AppCompatActivity {
   @Override
   protected void onResume() {
     super.onResume();
+    if (!com.deepseekharness.app.BuildConfig.BUNDLED_LEGACY_RECOVERY) return;
     resumed = true;
     main.post(refresh);
   }
