@@ -88,6 +88,13 @@ android {
     }
 
     packagingOptions {
+        dex {
+            // Download-size optimization only: dex bytes/code stay identical.
+            // Standard (API 30+) otherwise STORES every classes*.dex in the APK.
+            // This may add extraction/disk work on installation, so keep
+            // as a separately verifiable packaging decision.
+            useLegacyPackaging = true
+        }
         jniLibs {
             useLegacyPackaging = true
             // 运行时和应急启动器绑定签名 APK 中的完整字节，禁止打包阶段 strip 改写。
