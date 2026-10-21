@@ -14,9 +14,9 @@ public final class AboutFragment extends Fragment {
     CardPage ui = new CardPage(requireContext(), UiText.choose("关于 DSHA", "About DSHA"), "");
     android.widget.FrameLayout emblem = new android.widget.FrameLayout(requireContext());
     android.widget.ImageView mark = new android.widget.ImageView(requireContext());
-    mark.setImageResource(R.drawable.ic_ui2_prompt);
-    mark.setBackgroundResource(R.drawable.bg_ui2_mark);
-    mark.setPadding(ui.dp(14), ui.dp(14), ui.dp(14), ui.dp(14));
+    mark.setImageResource(R.drawable.dsha_launcher_foreground);
+    mark.setBackgroundResource(R.drawable.bg_dsha_brand);
+    mark.setPadding(0, 0, 0, 0);
     emblem.addView(
         mark, new android.widget.FrameLayout.LayoutParams(ui.dp(64), ui.dp(64), Gravity.CENTER));
     ui.content.addView(emblem, new LinearLayout.LayoutParams(-1, ui.dp(84)));
