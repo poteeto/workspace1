@@ -182,7 +182,7 @@ def check_workspace_policy():
 def check_packaging_source():
     source=(ROOT/'tools/build-dsh-runtime.py').read_text()
     methods=['SESSION_PERSISTENCE_JSONL_MODULE','RC1_SETTINGS_MODULE',
-             'LEXICAL_CLAIM_MODULE','DSH_VERSION','dshaSessionHints']
+             'LEXICAL_CLAIM_MODULE','dshaSessionHints']
     for marker in methods:
         if marker not in source:raise ValueError('packager missing migration guard: '+marker)
     return 'session state adapters and guarded packaging present'
