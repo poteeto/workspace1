@@ -36,7 +36,11 @@ def module(name):
     path=MODULES/p
     if not path.is_file() or path.is_symlink():
         raise ValueError('missing/unsafe published module: '+str(path))
-    return path.read_text(encoding='utf8')
+    # Crucial: Java Compat.readAll decodes UTF-8 *without* normalizing CRLF.
+    # Some reviewed patch 'after' fragments contain literal CRLF and packaging
+    # writes those bytes. Python Path.read_text universal newline translation
+    # would falsely report a mismatch on the actual already-patched APK module.
+    return path.read_bytes().decode('utf8')
 
 def exact(source,before,after):
     """Same pre/post conditions as Android ExactTextPatch.apply."""
