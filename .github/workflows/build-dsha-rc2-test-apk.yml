@@ -2,7 +2,7 @@ name: Build isolated DSHA rc2 Android test APK
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
-    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/assets/runtime-patches.json, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
+    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/build.gradle, app/src/main/res/**, app/src/main/java/com/deepseekharness/app/ui/**, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/assets/runtime-patches.json, tools/report-apk-size.py, tools/verify-monochrome-ui.py, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -114,6 +114,8 @@ jobs:
                   raise SystemExit("ACTIVE_PATCH_VERSION_MISMATCH: " + name)
           print("ANDROID_PATCH_REGISTRY_VERSION_OK", target)
           PY
+      - name: Check unified light/dark monochrome native UI and version pins
+        run: python3 tools/verify-monochrome-ui.py
       - name: Build fully bundled Standard debug APK
         shell: bash
         run: |
@@ -134,8 +136,27 @@ jobs:
               raise SystemExit('APK_MISSING_OFFLINE_LINUX')
             ver=json.loads(z.read('assets/runtime-descriptor.json'))['dshVersion']
             if ver!='0.2.1-rc.2':raise SystemExit('APK_OLD_DSH_VERSION:'+ver)
+            recovery=('assets/recovery-dsh-runtime.bin','assets/recovery-runtime.json')
+            if not all(x in a for x in recovery):
+              raise SystemExit('APK_MISSING_OFFLINE_RECOVERY')
+            dex=[zinfo for zinfo in z.infolist() if zinfo.filename.startswith('classes') and zinfo.filename.endswith('.dex')]
+            if not dex or any(zinfo.compress_type!=zipfile.ZIP_DEFLATED for zinfo in dex):
+              raise SystemExit('APK_DEX_NOT_COMPRESSED')
+            print('VALIDATED_DEX_COMPRESSION',len(dex),sum(zinfo.compress_size for zinfo in dex),sum(zinfo.file_size for zinfo in dex))
             print('VALIDATED_DEBUG_APK',apk,apk.stat().st_size,hashlib.sha256(apk.read_bytes()).hexdigest(),'dsh',ver)
           PY
+      - name: Measure actual APK size by resource group
+        shell: bash
+        run: |
+          python3 tools/report-apk-size.py \
+            app/build/outputs/apk/standard/debug/*.apk \
+            --json app/build/outputs/apk/standard/debug/size-breakdown.json
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: DSHA-0.2.1-rc2-APKSIZE-REPORT
+          path: app/build/outputs/apk/standard/debug/size-breakdown.json
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         if: success()
         with:
