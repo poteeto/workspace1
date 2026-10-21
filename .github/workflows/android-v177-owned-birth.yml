@@ -1,0 +1,71 @@
+name: Android ARM64 signed process ownership acceptance
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths:
+      - .github/workflows/android-v177-owned-birth.yml
+      - tools/android-owned-birth-test.sh
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+concurrency:
+  group: dsha-real-android-native-birth-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android-owned-birth:
+    runs-on: macos-15
+    timeout-minutes: 48
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert native ARM64 macOS Android emulator availability
+        run: |
+          test "$(uname -m)" = arm64
+          test -x "$ANDROID_HOME/emulator/emulator"
+          test -x "$ANDROID_HOME/platform-tools/adb"
+      - name: Install ARM64 Android 15 system image
+        shell: bash
+        run: |
+          set -euo pipefail
+          { yes || true; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "system-images;android-35;google_apis;arm64-v8a"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n dsha-arm64 -k "system-images;android-35;google_apis;arm64-v8a" -d "pixel_7"
+      - name: Require a genuinely successful complete v177 Android build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 100); do
+            state="$(gh api repos/poteeto/workspace1/actions/runs/39657235016 --jq .status)"
+            if [ "$state" = completed ]; then
+              result="$(gh api repos/poteeto/workspace1/actions/runs/39657235016 --jq .conclusion)"
+              test "$result" = success || { echo "V177_BUILD_NOT_SUCCESSFUL:$result"; exit 1; }
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "V177_BUILD_NOT_FINISHED"
+          exit 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v177-ANDROID-BIRTH
+          run-id: 39657235016
+          github-token: ${{ github.token }}
+          path: packaged/main
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-v177-ARM64-KERNEL-BIRTH-ANDROIDTEST
+          run-id: 39657235016
+          github-token: ${{ github.token }}
+          path: packaged/tests
+      - name: Test signed native birth and ECHILD under real Android/Bionic UID
+        shell: bash
+        run: bash tools/android-owned-birth-test.sh packaged/main packaged/tests
+      - name: Preserve emulator evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSHA-v177-REAL-ANDROID-OWNED-BIRTH-EVIDENCE
+          path: emulator-evidence/
+          if-no-files-found: warn
+          retention-days: 14
