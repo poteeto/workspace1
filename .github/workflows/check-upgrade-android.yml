@@ -18,6 +18,7 @@ on:
       - app/src/main/java/com/deepseekharness/app/util/ColdInstallPlan.java
       - app/src/test/java/com/deepseekharness/app/runtime/RuntimeLauncherTest.java
       - app/src/test/java/com/deepseekharness/app/util/ColdInstallPlanTest.java
+      - tools/verify-cold-runtime-qualification.py
       - app/src/test/java/com/deepseekharness/app/util/LanSettingsCompatibilityTest.java
       - app/src/test/java/com/deepseekharness/app/util/AdbWheelPathsTest.java
       - app/src/test/java/com/deepseekharness/app/util/ManagedPatchRegistryIntegrationTest.java
@@ -32,6 +33,8 @@ jobs:
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
+      - name: Check installed and cold runtime qualification boundaries
+        run: python3 tools/verify-cold-runtime-qualification.py
       - name: Resolve toolchain from DSHA source
         id: toolchain
         run: python3 tools/ci-toolchain.py --github-output
