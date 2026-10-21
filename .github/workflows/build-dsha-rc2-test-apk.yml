@@ -1,4 +1,7 @@
 name: Build isolated DSHA rc2 Android test APK
+concurrency:
+  group: dsha-rc2-build-${{ github.ref }}
+  cancel-in-progress: true
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
