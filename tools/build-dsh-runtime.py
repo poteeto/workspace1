@@ -128,6 +128,13 @@ def patched_content(relative, data):
             recipe = json.loads(recipe_path.read_text(encoding='utf-8'))
             if recipe.get('module') != name or recipe.get('dshVersion') != expected:
                 raise ValueError(f'{label} 补丁目标或 DSH 版本未锁定')
+            # DSH 0.2.1-rc.2 no longer contains the old TOKEN_STYLE claim
+            # decoration or its splitText transform in this published module.
+            # Never force a stale patch into a different Lexical implementation.
+            if label == 'Lexical claim' and expected == '0.2.1-rc.2':
+                if 'TOKEN_STYLE' in text or any(patch['before'] in text for patch in recipe['patches']):
+                    raise ValueError('DSH rc2 claim implementation changed again; review before packaging')
+                continue
             for patch in recipe['patches']:
                 if text.count(patch['before']) != 1:
                     raise ValueError(f'上游 {label} 结构变化，必须重新检查')
