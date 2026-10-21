@@ -14,9 +14,17 @@ Examining the **actual APK artifact** from build run [39657235016](https://githu
 - Tie the Android 15 emulator test job to the APK and instrumentation artifacts of the **same CI run** via `needs: test-apk`. Historical workflow `android-v177-kvm-bridge.yml` remains forensic only; it downloads a fixed obsolete build and cannot certify v178.
 - Retain PID, owner UID, birth, SO_PEERCRED, ECHILD and no-guest proof requirements; never accept a host or emulator result as phone/OEM acceptance.
 
-## Remaining acceptance criteria
+## v178 verified CI result (2026-10-22)
 
-1. v178 debug APK and instrumentation must compile and pass the V2 provenance gate.
-2. Android 15 native-bridge emulator must actually report `ANDROID_NATIVE_BIRTH_AND_ECHILD_PASS`, not just install success.
-3. Full cold BXROOT setup, OEM SELinux/procfs and existing-session migration still require separately collected device evidence.
-4. Never uninstall/wipe user data, change E7E3 signing identity, automatically merge the draft PR, or publish an unverified release.
+- [Build and same-run Android emulator workflow 39670697314](https://github.com/poteeto/workspace1/actions/runs/39670697314): **success**, with full Standard Debug APK assembly, standalone instrumentation assembly, and bit-for-bit proof that the shipped APK's `lib/arm64-v8a/libdsha-session.so` equals the rebuilt source binary.
+- The pinned-26.3.11579264-NDK ELF is 13,816 bytes; reproducible SHA-256 `5a2a6e61f8849a4c4cbd5ecbe5a9036c4039f9abde0948cd94ef37e136d7ebee`. The earlier build initially failed `DESCRIPTOR_LAUNCHER_BYTES` because provenance was generated before recompilation; [489a983](https://github.com/poteeto/workspace1/commit/489a983e3d1aa6157bbc200f9082a5c1eddd0ee8) orders the rebuild before manifest regeneration without disabling validation.
+- Android 15 emulator reports `ro.product.cpu.abilist=x86_64,arm64-v8a` and `ro.dalvik.vm.native.bridge=libndk_translation.so`. Both APKs installed successfully. The real instrumentation reported `ANDROID_NATIVE_BIRTH_AND_ECHILD_PASS`, and the harness reported `ANDROID_KERNEL_NATIVE_BRIDGE_OWNED_SESSION_PASS`.
+- [Android KVM diagnostic evidence artifact](https://github.com/poteeto/workspace1/actions/runs/39670697314/artifacts/12380741052), [v178 test-only APK artifact](https://github.com/poteeto/workspace1/actions/runs/39670697314/artifacts/12380790530), [instrumentation APK](https://github.com/poteeto/workspace1/actions/runs/39670697314/artifacts/12380795553).
+- [Standard and Low JVM tests 39670083465](https://github.com/poteeto/workspace1/actions/runs/39670083465): **success**. Those JVM tests ran on the preceding v178 source commit; the subsequent commit only changed workflow ordering, not Java or Gradle source.
+
+## Remaining acceptance boundaries
+
+1. The emulator was Android 15 **x86_64 running ARM64 via native bridge**, not a native ARM64 physical phone; real OEM procfs/SELinux policies and hardware remain untested.
+2. The instrumentation executes a minimal `/system/bin/sh` subprocess. Full cold BXROOT Ubuntu/tool installation and existing-workspace/session migration **have not passed this test**.
+3. These artifacts are **temporary Debug-signed test APKs** and cannot serve as a drop-in same-signature replacement for production E7E3 installations. Do not uninstall/wipe data to install them.
+4. PR #2 stays draft; do not automatically merge to main, change historical release signing, or publish an unverified release.
