@@ -30,7 +30,7 @@ jobs:
         run: node tools/audit-dsh-published-packages.mjs
       - name: Install release dependencies without running third-party scripts
         working-directory: tools/dsh-runtime
-        run: npm ci --ignore-scripts --no-audit --no-fund
+        run: npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund
       - name: Inspect upstream changes to patch targets
         run: python3 tools/inspect-dsh-upgrade-changes.py
       - name: Audit all DSHA mobile overlay compatibility anchors
