@@ -1,18 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <queries>
+        <package android:name="com.openai.chatgpt" />
+    </queries>
     <application android:allowBackup="false"
-        android:label="ChatGPT 分包安装器"
+        android:label="ChatGPT 官方安装器 v2"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="false">
-        <activity android:name=".MainActivity"
+        <activity android:name="dev.chatgpt.splitinstaller.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <receiver android:name=".InstallResultReceiver"
+        <receiver android:name="dev.chatgpt.splitinstaller.InstallResultReceiver"
             android:exported="false"/>
     </application>
 </manifest>
