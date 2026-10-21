@@ -5,6 +5,9 @@ on:
     paths:
       - .github/workflows/real-dsh-boot.yml
       - tools/smoke-dsh-web.mjs
+      - tools/smoke-dsh-owned-web.py
+      - tools/native-session/session-launcher.c
+      - tools/test-native-session-handshake.py
   workflow_dispatch:
 
 permissions:
@@ -67,6 +70,23 @@ jobs:
           set -euo pipefail
           timeout --signal=TERM --kill-after=5s 180s node tools/smoke-dsh-web.mjs \
             "$PWD/extracted/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js"
+      - name: Compile original signed session C supervisor on native ARM64
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -D_GNU_SOURCE -O2 -fPIE -pie -Wall -Wextra \
+            tools/native-session/session-launcher.c -o "$RUNNER_TEMP/dsha-session-linux-arm64"
+          file "$RUNNER_TEMP/dsha-session-linux-arm64"
+      - name: Test actual kernel self-stat birth handshake and control protocol
+        shell: bash
+        run: python3 tools/test-native-session-handshake.py
+      - name: Launch real packaged DSH through native session supervisor, prove /proc identity and stop
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 110s python3 tools/smoke-dsh-owned-web.py \
+            --launcher "$RUNNER_TEMP/dsha-session-linux-arm64" \
+            --dsh-entry "$PWD/extracted/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js"
       - name: Document coverage boundary
         if: always()
         run: |
