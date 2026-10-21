@@ -1,0 +1,50 @@
+name: Build bundled ChatGPT installer
+
+on:
+  push:
+    branches:
+      - chatgpt-singlefile-installer
+    paths:
+      - '.github/workflows/build-chatgpt-bundled.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundled:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download original APKM from APKMirror
+        env:
+          DOWNLOAD_URL: https://www.apkmirror.com/wp-content/themes/APKMirror/download.php?id=16662108&key=562163d71fc3a4343e545a432e70d9111362768b
+        run: |
+          mkdir -p chatgpt-installer/app/src/main/assets
+          curl -fL --retry 2 --max-time 180 -A 'Mozilla/5.0' \
+            -e 'https://www.apkmirror.com/apk/openai/chatgpt/chatgpt-1-2026-286-release/chatgpt-1-2026-286-3-android-apk-download/' \
+            -o chatgpt-installer/app/src/main/assets/chatgpt.apkm "$DOWNLOAD_URL"
+          echo '4d35df1f9cb5f71c13e64a58b20066fbf960df8135256f4256eeb955f942ef96  chatgpt-installer/app/src/main/assets/chatgpt.apkm' | sha256sum -c -
+          unzip -t chatgpt-installer/app/src/main/assets/chatgpt.apkm | tail -2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare Android SDK
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build self-contained signed-split installer
+        working-directory: chatgpt-installer
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Upload one-click ChatGPT installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChatGPT-1.2026.286-one-click-installer
+          path: chatgpt-installer/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
