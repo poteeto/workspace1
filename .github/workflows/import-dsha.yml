@@ -1,0 +1,39 @@
+name: Import DSHA upstream source
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/import-dsha.yml
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    if: github.repository == 'poteeto/workspace1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout private project
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Import pinned upstream Git history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add dsha-upstream https://github.com/DSH-APP/DSHA.git
+          git fetch --no-tags dsha-upstream main
+          upstream=891405e006da2316ff593cb4a74485de6c1d7b19
+          git cat-file -e "${upstream}^{commit}"
+          if git merge-base --is-ancestor "$upstream" HEAD; then
+            echo "The pinned upstream commit is already present."
+            exit 0
+          fi
+          git merge --allow-unrelated-histories --no-ff --no-edit "$upstream" -m "Import DSHA upstream at $upstream"
+          git push origin HEAD:main
