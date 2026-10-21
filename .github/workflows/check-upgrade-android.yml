@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/check-upgrade-android.yml
       - app/build.gradle
+      - gradle/verification-metadata.xml
   workflow_dispatch:
 
 permissions:
