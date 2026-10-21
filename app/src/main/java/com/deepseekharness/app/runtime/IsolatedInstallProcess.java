@@ -147,11 +147,16 @@ final class IsolatedInstallProcess extends Process implements AutoCloseable, Own
       // Set the alternate inspection mode ONLY after the kernel has verified
       // the live peer and the native control handshake completed.
       ready.kernelPeerBirth = requireAuthenticatedPeer;
-      if (requireAuthenticatedPeer)
-        RuntimeHostPorts.fromOwner(context.getApplicationContext()).record(
-            "OWNED_BIRTH_PEER_VERIFIED",
-            "parent_proc_denied; peer_pid_uid_verified; sid_errno=" + (-kernelSid));
       accepted = true;
+      if (requireAuthenticatedPeer) {
+        try {
+          RuntimeHostPorts.fromOwner(context.getApplicationContext()).record(
+              "OWNED_BIRTH_PEER_VERIFIED",
+              "parent_proc_denied; peer_pid_uid_verified; sid_errno=" + (-kernelSid));
+        } catch (RuntimeException diagnosticsUnavailable) {
+          // Diagnostics must not invalidate an already authenticated START.
+        }
+      }
       return ready;
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
