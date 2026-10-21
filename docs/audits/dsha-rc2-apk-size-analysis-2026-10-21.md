@@ -21,23 +21,30 @@
 
 > 这是 Debug 与 Release 的**非同条件比较**，不能把所有增量称为 DSH 依赖增长。单独保留可脱机恢复的旧 DSH 运行包，约占实验包 **117 MiB**；全新 DSH 依赖比官方原版本多约 **24.6 MiB**。
 
-## 已实施的低风险压缩
+## 实施进展：按用户要求移除旧版 DSH 应急环境
 
-- 在 `app/build.gradle` 的 APK packaging 中启用 `dex.useLegacyPackaging = true`。仅改变 DEX 的 APK ZIP 压缩方式，**不移除 DEX、修改字节码、删权限或改变运行环境**。Android 30+ 安装时可能需要额外解压空间与时间，必须进行实际安装测试。
-- 删除已经由同一官方 DeepSeek 矢量取代、且全 `app/src` 确认无资源引用的 `drawable-nodpi/dsha_brand.png`，约 360 KiB。
-- 新 CI 必须检查全部 `classes*.dex` 为 DEFLATE，并且新 DSH 与旧恢复包两者都存在；任何一步失败即停止上传测试 APK。
-- 用 `tools/verify-monochrome-ui.py` 防止新版布局又回到旧品牌位图或自动染色。
+最终选择：**不再在测试 APK 中携带 `0.2.0-rc.2` 的独立 DSH 恢复运行包**。这意味着当前精简版不再提供旧版 DSH 的离线应急启动功能，但 **Android 原生日志查看、数据备份/导出和当前 DSH 的正常环境维护功能仍保留**。不能把本实验版描述成“具有独立 DSH 紧急恢复能力”。
 
-## 不可通过删包换体积的内容
+- `app/build.gradle` 的 `BuildConfig.BUNDLED_LEGACY_RECOVERY=false`；Android 构建不再依赖 `prepareRecoveryAssets`，打包资源路径不含 `generated/recoveryAssets`。
+- GitHub Actions 不再重新安装或构建旧版 DSH 副本，最终 APK 必须检查 `assets/recovery-dsh-runtime.bin`、`assets/recovery-rootfs.bin`、`assets/recovery-runtime.json` 与 `assets/recovery-overlay/*` **不存在**。
+- 单独应急入口在维护与启动恢复页隐藏；直接打开旧入口时，提供备份/日志/当前运行环境维护页面，不会开始安装缺失的应急副本。
+- 新 APK `versionCode=174`，测试包名称明确标记 `SLIM-DEBUG-v174`，防止误下载安装旧的 v173 故障包。
+- Gradle 压缩 DEX 改变的是 APK ZIP 压缩方式而不是字节码；仍需要真机安装性能测试。
+- 旧品牌位图删除，并保留黑底白鲸鱼的原生 UI 整合修改。
 
-- `assets/offline-rootfs.bin`：完整离线 Linux 用户空间。
-- `assets/dsh-runtime.bin`：实际 DSH 核心。
-- `assets/recovery-dsh-runtime.bin`：独立的老版本应急恢复环境，必要时供受限界面继续导出/恢复数据。**不能在无可验证替代实现前删去**。
-- `assets/ubuntu-tools.bin`、Python、pnpm、受管策略、签名与凭证保护相关资产：需要实际依赖验证，不做静态猜测删减。
+## `PATCH_REGISTRY_VERSION` 故障复查
 
-## 后续体积路线（不在这次实验包冒险实施）
+旧实现在 `RuntimeTools.applyPatchChain` 把至少两种原因都显示为同一个含糊的 `PATCH_REGISTRY_VERSION`：Java 常量与包内注册表不一致，以及包内某份补丁声明与已安装 DSH 不一致。
 
-1. 对两个版本 DSH 运行包按文件内容 SHA-256 审计重复模块，研究可以逐文件校验的离线差量重建，不修改旧版本应急镜像的逻辑身份。
-2. 如采用差量形式，应在设备上完成复原 SHA-256 全等、掉电中断恢复、存储不足处理及 Android 6/11+ 的冷启动与会话数据迁移测试；才能替换原有 117 MiB 独立包。
-3. 在保留历史 E7E3 签名的前提下对照同一 flavor 的正式包。严禁为了缩小上传包用临时签名冒充官方可覆盖安装版本。
-4. WebView / React UI 与 Android 原生 UI 属于不同渲染层，本次只统一原生主题和品牌；未把静态主题检查冒充真机视觉验收。
+现在：
+- 当维护正在从旧 DSH 升级时，先比较**磁盘上安装的 DSH 版本**与 APK 的补丁注册表版本；旧环境不允许套用新补丁，但不会被错误地诊断为“APK 注册表损坏”。
+- 常量/注册表真正不匹配时，错误会报告 `apk=`、`registry=`、`installed=` 的具体版本。
+- 单项补丁不匹配时，使用独立 `PATCH_RECIPE_VERSION` 和文件名，便于下一次现场反馈。
+- GitHub Actions 对**最终 APK 的实际 ZIP 资源**进行检查，逐一验证所有活动补丁 JSON 的 `dshVersion`，而不再仅对源码目录做一致性检查。
+- 静态校验与 APK 构建成功不能替代真实手机的升级、安装、会话读写测试。
+
+## 尺寸预期
+
+在之前已经减重至约 **427.8 MB** 的标准 Debug 测试包基础上，去掉 `116.99 MiB` 的旧版应急 DSH 独立运行包，理论上可降到约 **305 MB** 附近（实际数值以新 CI 打包日志为准）。无需为体积优化删除新版 DSH、Ubuntu 基础 rootfs、个人数据管理逻辑或备份功能。
+
+继续保持升级 PR #2 为草稿；严禁通过更换发布签名、卸载现有用户 App 或清除数据来解决升级兼容问题。
