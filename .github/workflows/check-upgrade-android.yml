@@ -36,6 +36,11 @@ jobs:
           platform=$(python3 tools/ci-toolchain.py --field androidPlatform)
           buildtools=$(python3 tools/ci-toolchain.py --field buildTools)
           sdkmanager "platforms;$platform" "build-tools;$buildtools"
+      - name: Rebuild verified bxroot ARM64 native inputs
+        run: |
+          ndk=$(python3 tools/ci-toolchain.py --field ndk)
+          sdkmanager "ndk;$ndk"
+          python3 tools/bxroot/build.py --help
       - name: Compile and test both Android variants without offline release assets
         shell: bash
         run: |
