@@ -1,5 +1,5 @@
 {
-  "dshVersion": "0.2.0-rc.2",
+  "dshVersion": "0.2.1-rc.2",
   "module": "@deepseek-ai/dsh-llm-pi-ai/lib/index.js",
   "packageVersion": "0.2.0-rc.2",
   "canonicalSourceSha256": "d46dbc30aeb3414190000e6f8aeaaf994246b5e5c651de07639f4a7e92de37ef",
