@@ -1,4 +1,7 @@
 name: Android ARM64 emulator cold-start evidence
+concurrency:
+  group: dsha-android-arm64-emulator-${{ github.ref }}
+  cancel-in-progress: true
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
