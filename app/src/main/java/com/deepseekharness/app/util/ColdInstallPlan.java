@@ -168,6 +168,16 @@ public final class ColdInstallPlan {
   }
 
   public static String probeScript() {
+    return probeScript(Mode.BXROOT);
+  }
+
+  /** The bxroot engine needs direct kernel syscall proof. The proot engine
+   * emulates some syscalls, so qualifying it as if it were bxroot would
+   * incorrectly prohibit the intentionally supported compatibility fallback.
+   * Both modes still verify Bash/Python/fsync/dpkg/ldconfig before publish. */
+  public static String probeScript(Mode mode) {
+    if (mode == null || !mode.runtime.matches("bxroot|proot"))
+      throw new IllegalArgumentException("COLD_PROBE_ENGINE");
     return "set -eu\nprintf '\\nDSHA_PROBE_STAGE=SHELL\\n'\nprobe=\"$1\"\n"
         + "[ ! -e \"$probe\" ] && [ ! -L \"$probe\" ] || exit 64\n"
         + "/bin/mkdir -- \"$probe\"\n"
@@ -189,7 +199,9 @@ public final class ColdInstallPlan {
         // previous installed-root preflight ran too early, aborting before
         // this proof was allowed to run. Prove glibc/statx/execveat and all
         // package tools here, before permitting the configured overlay.
-        + RuntimeCapabilityProbe.packages()
+        + (mode == Mode.BXROOT
+            ? RuntimeCapabilityProbe.packages()
+            : RuntimeCapabilityProbe.packageTools())
         + "\n"
         + "printf '\\n"
         + PROBE_READY
@@ -197,10 +209,16 @@ public final class ColdInstallPlan {
   }
 
   public static String probeCommand(String guest) {
+    return probeCommand(guest, Mode.BXROOT);
+  }
+
+  public static String probeCommand(String guest, Mode mode) {
+    if (mode == null || !mode.runtime.matches("bxroot|proot"))
+      throw new IllegalArgumentException("COLD_PROBE_ENGINE");
     if (guest == null || !guest.matches("/root/\\.dsha-cold-probe-[a-f0-9-]{36}"))
       throw new IllegalArgumentException("COLD_PROBE_PATH");
     return "/bin/bash -c "
-        + ShellQuote.arg(probeScript())
+        + ShellQuote.arg(probeScript(mode))
         + " dsha-cold-probe "
         + ShellQuote.arg(guest);
   }
