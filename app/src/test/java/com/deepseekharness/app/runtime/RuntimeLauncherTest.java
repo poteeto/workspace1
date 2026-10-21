@@ -68,6 +68,7 @@ public class RuntimeLauncherTest {
       public boolean available() { return true; }
       public String unavailableReason() { return ""; }
       public List<String> baseArgv(File root, boolean links) { return List.of("mock"); }
+      public List<String> baseArgv(File root, boolean links, File domain) { return List.of("mock"); }
       public void applyEnv(ProcessBuilder builder, File base, File lib, File tmp) {}
       public void prepare() {}
     };
