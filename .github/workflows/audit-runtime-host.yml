@@ -1,4 +1,7 @@
 name: DSH runtime host compatibility audit
+concurrency:
+  group: dsha-rc2-audit-${{ github.ref }}
+  cancel-in-progress: true
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
