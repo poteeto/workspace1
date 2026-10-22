@@ -4,7 +4,7 @@ plugins {
 
 // 两版共用功能和离线环境；只有 low 携带兼容旧 Android 的 Gecko 内核。
 // 文件名独立于可诊断版本名，保持当前用户下载入口不变。
-ext.dshaApkNameVersion = '0.2.29'
+ext.dshaApkNameVersion = '0.2.30'
 def bundledTools = new groovy.json.JsonSlurper().parse(rootProject.file('tools/runtime-tools.lock.json'))
 if (bundledTools.schema != 1 || !(bundledTools.pnpm.version ==~ /[0-9]+\.[0-9]+\.[0-9]+/))
     throw new GradleException('随包工具身份格式错误')
@@ -25,9 +25,9 @@ android {
         buildConfigField 'String', 'BUNDLED_PNPM_VERSION', '"' + bundledTools.pnpm.version + '"'
         // Slim release: no second/legacy DSH recovery runtime; native data backup remains available.
         buildConfigField 'boolean', 'BUNDLED_LEGACY_RECOVERY', 'false'
-        versionCode 179
+        versionCode 180
         // DSHA 修订号 + 固定的北京时间戳 + 内置 DSH 版本；同一交付重建不变。
-        versionName "0.2.29-20261022.1135-dsh0.2.1-rc.2"
+        versionName "0.2.30-20261022.1800-dsh0.2.1-rc.2"
         testInstrumentationRunner project.findProperty('dsha.testRunner') ?: "com.deepseekharness.app.Rc13Instrumentation"
         ndk {
             abiFilters 'arm64-v8a'
@@ -50,7 +50,7 @@ android {
     }
 
     signingConfigs {
-        // 用户于 v179 决定废弃无法恢复的 E7E3 旧发布密钥。
+        // 用户于 v180 决定废弃无法恢复的 E7E3 旧发布密钥。
         // 新固定发布证书 SHA-256: 52c1746ea586585f43a087fce81cae1e1c89dfa130c09c2b66c64029be7f93a6
         // 新 keystore 为 PKCS12，alias=dsha-publish。私钥不得提交公开仓库，
         // 而须单独安全备份并在后续每个版本重复使用，不得再次自行换钥。
@@ -68,7 +68,7 @@ android {
                         ?: project.findProperty("dsha.key.password")
                 if (!storePassword || !keyPassword)
                     throw new GradleException('必须明确提供发布密钥口令，不能使用隐式缺省值')
-                println "签名：已配置 v179 起固定新发布证书"
+                println "签名：已配置 v180 起固定新发布证书"
             } else {
                 println "签名：未配置固定新发布证书；正式 APK 打包将被阻止"
             }
@@ -140,14 +140,14 @@ def verifyPublishCertificate = tasks.register("verifyPublishCertificate") {
     doLast {
         def signing = android.signingConfigs.publish
         if (signing.storeFile == null || !signing.storeFile.isFile())
-            throw new GradleException("正式 APK 缺少 v179 起固定发布密钥，停止打包")
+            throw new GradleException("正式 APK 缺少 v180 起固定发布密钥，停止打包")
         def store = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
         signing.storeFile.withInputStream { store.load(it, signing.storePassword.toCharArray()) }
         def certificate = store.getCertificate(signing.keyAlias)
         def expected = new groovy.json.JsonSlurper().parse(rootProject.file('ci/release-identity.json')).certificateSha256
         if (certificate == null || java.security.MessageDigest.getInstance("SHA-256")
                 .digest(certificate.encoded).encodeHex().toString() != expected)
-            throw new GradleException("发布证书不匹配固定 v179 新密钥，停止打包")
+            throw new GradleException("发布证书不匹配固定 v180 新密钥，停止打包")
     }
 }
 tasks.configureEach {

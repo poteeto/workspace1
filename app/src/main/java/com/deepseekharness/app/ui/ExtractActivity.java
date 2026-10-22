@@ -187,6 +187,7 @@ public class ExtractActivity extends AppCompatActivity {
         pending = task.pendingMaintenanceForUi(),
         executionBusy = task.busy();
     boolean ready = environmentReady(s, busy, pending);
+    var pendingDetail = task.pendingMaintenanceDetailForUi();
     String renderKey =
         s.id
             + ":"
@@ -199,6 +200,7 @@ public class ExtractActivity extends AppCompatActivity {
             + executionBusy
             + ":"
             + pending
+            + ":" + pendingDetail.domain + ":" + pendingDetail.operation + ":" + pendingDetail.error
             + ":"
             + ready
             + ":"
@@ -225,6 +227,18 @@ public class ExtractActivity extends AppCompatActivity {
             ? com.deepseekharness.app.util.MaintenanceErrorText.render(s.detail)
             : com.deepseekharness.app.util.UiText.text(
                 "相同基础环境只更新 dsh 与内置插件，个人数据保持原位；基础环境变更时先保护数据再重建。验证失败可恢复原环境。"));
+    if (pending && !busy) {
+      String explanation = pendingDetail.domain.equals("bounded-guest")
+          ? com.deepseekharness.app.util.UiText.choose(
+              "尚未确认上次运行进程已全部退出。这不代表个人数据损坏。请先点“恢复中断维护”；若提示需重启，请重启手机后再恢复。",
+              "The previous process tree has not been confirmed stopped. This does not mean personal data is damaged. Recover interrupted maintenance; if a reboot is required, restart the phone and recover again.")
+          : com.deepseekharness.app.util.UiText.choose(
+              "检测到待恢复或无法读取的维护记录，请先恢复；原环境和个人数据保留。",
+              "An interrupted or unreadable maintenance record requires recovery. The original environment and personal data are retained.");
+      detail.setText(explanation + "\n\n" + pendingDetail.domain + " / " + pendingDetail.operation
+          + (pendingDetail.error.isEmpty() ? "" : "\n" + pendingDetail.error)
+          + (mine && !s.detail.isEmpty() ? "\n\n" + com.deepseekharness.app.util.MaintenanceErrorText.render(s.detail) : ""));
+    }
     boolean failed =
         mine
             && (s.status == BackupTaskState.Status.FAILED

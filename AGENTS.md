@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> 2026-10-22 当前用户授权覆盖下方历史签名/发布限制：修复升级分支及 GitHub Actions；在 GitHub 首次生成新固定发布密钥，加密存仓库、密码存 Actions Secret，后续必须复用，禁止隐式轮换。当前修复版本 v180 / 0.2.30。个人数据与外置文件保留；不把模拟器/单测写成真实设备通过。当前流程见 docs/ANDROID-SIGNED-APK-GITHUB-DOWNLOAD.md。
+
 > 2026-10-15 本轮新增授权：仅同步当前应用源码、构建脚本、必要文档与 Star History 到 GitHub；不上传 APK、离线归档、设备取证、密钥或本机交付资料，不发布 Release 或网站。下方历史“未上传”描述对应各自当时的本地交付状态，本轮源码同步范围见 docs/source-updates/build173.md。
 
 > build173 PiP 补充交付（2026-10-15）：C17 标准包修复“小窗显示时停止 → 重启 → 再进入”残留 Task 0.275 缩放；失效空宿主退休，新代次使用新 Task，同代网页实例继续保留。62 项定向 Activity 宿主回归、76 项开机边界恢复关联测试及最终 37 项软件门禁通过；两版 JUnit 各1700项、40 skip，Release Lint/完整资产/历史签名通过。正式同签名 Android13 原应用覆盖后，真实重启恢复、受管更新、PiP 停止及导出停止后的新窗口5/30秒、同代恢复/返回/旋转均有实际记录。1269条数据无增删，个人配置、会话、附件字节保留；历史4条未知记录与1条追加消息缺口继续保留。有限日志有2次 renderer 报告和2次 SAF 系统捕获 NPE，实际导出成功，不作零崩溃结论。标准 APK SHA c11abc4197f747b690897ea2198c990514eedd5d6ca10b9111ce7da90ed02f57 / 288099627 bytes，已替换 release 同名 rc2.1 标准包；C14 原件及封存材料保留，Low172 原字节不动。回执 artifacts/deliveries/build173-standard-pip-fix.json，源码 artifacts/source/build173-pip-fix/，补充报告 docs/releases/v0.2.24-build173-pip-20261015.md；不发布 GitHub、网站或 Release。

@@ -1,37 +1,29 @@
-# DSHA v179+：仅由 GitHub Actions 生成并管理正式签名
+# GitHub 固定签名与安装包下载
 
-## 原则
+当前发布流程：v180（0.2.30），分支 upgrade/dsh-0.2.1-rc.2。
 
-- **不使用 ChatGPT 云环境里生成的私钥**。该旧候选签名的证书指纹仅用于历史辨别，不再用于本流程。
-- v179 首次正式发布时，在 GitHub Actions 内生成一把 **RSA-4096、PKCS12、alias=dsha-publish** 的新签名密钥。
-- 公共仓库绝不提交明文私钥。Actions 用仓库的 **唯一主密码 Secret** 将这把密钥 GPG AES-256 对称加密，把密文持久保存在 `ci/github-signing/dsha-permanent-release.p12.gpg`。
-- 每次后续编译，在 GitHub Actions 中解密**同一个**密钥，验证与 `ci/github-signing/certificate.sha256` 和 `ci/release-identity.json` 的证书指纹一致，再签名；密钥或指纹丢失/不匹配时失败，不悄悄换新签名。
-- GITHUB_TOKEN 必须有当前分支的 `contents:write` 权限：首次在 GitHub Actions 内生成密钥后，需提交加密备份和公开证书指纹。**只有成功提交密文后才会上传签名 APK**，避免签名无法复用。
+## 唯一发布身份
 
-## 唯一一次管理员操作：设置一个随机主密码
+用户本轮授权首次生成一把新的 RSA-4096 / PKCS12 发布密钥。GitHub Actions 生成私钥，用仓库 Secret DSHA_SIGNING_MASTER_PASSWORD 加密，密文保存到 ci/github-signing/dsha-permanent-release.p12.gpg；公开指纹保存到 certificate.sha256 和 ci/release-identity.json。密码不进入源码、日志或 artifact。本地私密备份在仓库目录之外，需另行妥善保管。
 
-[打开本仓库 GitHub Actions Secrets](https://github.com/poteeto/workspace1/settings/secrets/actions)，新增 Repository Secret：
+身份状态从 bootstrap-authorized 只转换一次为 active。active 状态下密文、指纹或密码丢失均停止发布，不重新生成密钥。不同运行的签名任务串行；即使旧构建稍后执行，也从分支读取已持久保存的签名身份。只有密文提交成功后才上传可安装的 APK。
 
-- **Name**: `DSHA_SIGNING_MASTER_PASSWORD`
-- **Value**: 使用密码管理器随机生成 **不少于 32 字符** 的高强度密码（推荐 48–64 个随机字符）。只填到 GitHub Secrets；不要填写在 PR、Issue、聊天、源码、日志或工作流输入中。
+历史 E7E3 与 52c174… 都不是此次新身份。首次成功后的权威指纹以 ci/github-signing/certificate.sha256 为准，后续必须复用。不要再次把状态改回 bootstrap-authorized。
 
-这不是上传旧私钥，而是让 GitHub Actions 在第一次运行时**新建并加密保存自己的永久签名密钥**。不设置该 Secret 时，工作流会明确失败，避免私钥落到公开仓库或生成无法升级的临时签名。**务必妥善备份此主密码**，丢失后将无法解密后续更新所需的私钥。
+## 下载
 
-## GitHub 原生编译、签名与 ZIP 直链
+工作流 .github/workflows/build-dsha-rc2-test-apk.yml 构建 Standard 非调试候选、验证运行时和双版单测，并用同次 Debug APK 检查 Android 15 模拟器中的原生进程协议。签名任务随后签署同次 Release 候选，检查证书、版本和内容，再上传 DSHA-v180-GITHUB-KEY-SIGNED-STANDARD-APK，包含 dsha-0.2.30.apk 及 SHA-256。Artifact 保留 30 天，下载需登录 GitHub；未签名候选和 Debug 包不能代替正式包。
 
-工作流：`.github/workflows/build-dsha-rc2-test-apk.yml`
+模拟器的原生进程协议检查不等于 Release APK 的真实手机全功能验收。
 
-1. GitHub Actions 以同一份代码编译完整 Standard 版非调试 Release APK。
-2. GitHub Actions 执行 Android 模拟器与完整运行时检查。
-3. 单独的签名任务从本次 Actions 下载未签名 APK，在 GitHub 上首次生成 / 后续复用上述私钥。
-4. 使用 `zipalign` 和 `apksigner`，验证证书、包名、versionCode、非 Debug 属性和关键文件完整性。
-5. 第一次使用新签名时，先将仅加密的密钥和新证书指纹提交到 GitHub，再发布可安装的正式 ZIP。
-6. 上传 GitHub Actions Artifact：**`DSHA-v179-GITHUB-KEY-SIGNED-STANDARD-APK`**，内含 `dsha-0.2.29.apk` 及其 SHA-256 文件。
+## 旧版本维护卡住
 
-构建完成后会出现实际的 `https://github.com/poteeto/workspace1/actions/runs/RUN_ID/artifacts/ARTIFACT_ID` ZIP 下载链接。必须从**实际完成且签名任务成功的构建**取得两个 ID，不得猜测或用 Debug、未签名 APK 冒充。此链接可能要求登录 GitHub，30 天后 artifact 过期。
+用户提供的 v178 / realme RMX5090 / Android 16 日志显示：普通 V2 会话残留 identity、intent、protocol，缺少 tree-empty；试运行本身已闭合。缺少回执不能当作仍存活，也不能当作全部退出。
 
-## 签名迁移注意
+v180 允许已进入 uncertain 状态的当前拥有者建立持久恢复检查点；仍活动的拥有者继续阻止恢复。同次开机不能清除未知进程树，需先点恢复建立检查点，再真实重启手机，再点恢复。记录整体保存于 bounded-guest-boot-recovery，不移动或删除个人数据，不重放未知命令，不伪造 ECHILD。该路径在手机上的实际验收仍待完成。
 
-GitHub 新生成的证书不同于 v178 历史 E7E3 签名，也不同于此前 ChatGPT 云环境里生成的候选 v179 签名。因此手机上已经安装上述任一种不同证书 APK 时，必须先备份应用数据、卸载旧包，才可安装新的 GitHub 正式签名包。**成功生成后续版本必须继续复用本仓库加密保存的 GitHub 新密钥。**
+界面现在展示具体阻塞域与记录号；导出的错误日志补充维护任务最后阶段、恢复失败详情及进程记录状态，避免旧日志只有 failureRecorded=false 而看不到维护失败。
 
-若首次提交加密备份时因 GitHub Actions 工作流写权限不足而失败，必须先调整仓库的 Workflow permissions / branch rules 使该 job 的 `contents:write` 可提交 `ci/github-signing/`；此时不会发布一个无法保留私钥的正式 APK。
+## 签名迁移
+
+新证书无法直接覆盖手机上不同签名的旧包。请先保留旧应用并导出可验证的数据副本；没有备份不要卸载或清除数据。新签名连续发布使用同一密钥和递增 versionCode。此流程不承诺能对旧签名原地覆盖，也不把代码测试视为旧数据恢复验收。

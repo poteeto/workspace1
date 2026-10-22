@@ -376,8 +376,11 @@ public final class BoundedGuestSessions {
           if (fs.stat(fs.child(entry, "tree-empty")).type.equals("MISSING")) {
             // Only a legacy ordinary record may acquire a reboot checkpoint. A
             // current owner or bound trial keeps its original closure contract.
-            if (active.containsKey(id)) throw new IOException("BOUNDED_GUEST_CURRENT_OWNER");
+            Operation owner = active.get(id);
+            if (owner != null && !owner.uncertain)
+              throw new IOException("BOUNDED_GUEST_CURRENT_OWNER");
             BoundedGuestBootRecovery.recover(fs, files, entry, id, boots, guard);
+            if (owner != null) active.remove(id, owner);
             continue;
           }
           String tree =

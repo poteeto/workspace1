@@ -1,3 +1,5 @@
+> 历史记录：本轮用户已重新授权由 GitHub Actions 首次生成新固定密钥，后续统一复用。下方 v179 候选证书不再作为当前发布身份；以 [当前流程](../ANDROID-SIGNED-APK-GITHUB-DOWNLOAD.md) 和 ci/github-signing/certificate.sha256 为准。
+
 # DSHA v179：固定新签名正式安装包
 
 2026-10-22。用户明确决定不再追索 E7E3 原签名；本项目从 v179 起采用固定的新 RSA-4096 发布密钥（PKCS12，alias `dsha-publish`）。

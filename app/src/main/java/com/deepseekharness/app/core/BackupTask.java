@@ -26,6 +26,8 @@ public final class BackupTask {
   private final Object pendingCacheLock = new Object();
   private volatile long pendingCacheAt;
   private volatile boolean pendingCacheValue;
+  private volatile com.deepseekharness.app.backup.HostMaintenancePending.Check pendingCacheCheck =
+      com.deepseekharness.app.backup.HostMaintenancePending.Check.clear();
   private volatile boolean pendingCacheValid;
   private static final ThreadLocal<com.deepseekharness.app.backup.BackupControl> OWNER_CONTROL =
       new ThreadLocal<>();
@@ -87,8 +89,10 @@ public final class BackupTask {
 
   /** 执行入口使用的同步、不可缓存维护门禁。 */
   public boolean pendingMaintenance() {
-    boolean value = MaintenanceCoordinator.pending(controller);
+    var check = MaintenanceCoordinator.inspectPending(app.getFilesDir());
+    boolean value = check.blocked;
     synchronized (pendingCacheLock) {
+      pendingCacheCheck = check;
       pendingCacheValue = value;
       pendingCacheAt = android.os.SystemClock.elapsedRealtime();
       pendingCacheValid = true;
@@ -107,12 +111,19 @@ public final class BackupTask {
     synchronized (pendingCacheLock) {
       now = android.os.SystemClock.elapsedRealtime();
       if (!pendingCacheValid || now - pendingCacheAt >= UI_PENDING_CACHE_MILLIS) {
-        pendingCacheValue = MaintenanceCoordinator.pending(controller);
+        pendingCacheCheck = MaintenanceCoordinator.inspectPending(app.getFilesDir());
+        pendingCacheValue = pendingCacheCheck.blocked;
         pendingCacheAt = now;
         pendingCacheValid = true;
       }
       return pendingCacheValue;
     }
+  }
+
+  /** 与布尔门禁使用同一缓存快照，显示具体阻塞域而不是猜测环境已损坏。 */
+  public com.deepseekharness.app.backup.HostMaintenancePending.Check pendingMaintenanceDetailForUi() {
+    pendingMaintenanceForUi();
+    return pendingCacheCheck;
   }
 
   private void invalidatePendingCache() {
