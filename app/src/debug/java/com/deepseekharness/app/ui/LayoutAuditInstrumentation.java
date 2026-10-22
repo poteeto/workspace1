@@ -187,8 +187,6 @@ public final class LayoutAuditInstrumentation extends Instrumentation {
     if (view instanceof android.widget.Button) return true;
     int id = view.getId();
     return id == R.id.settings_language
-        || id == R.id.config_overlay_style
-        || id == R.id.config_workspace_entry
         || id == R.id.environment_recovery_banner
         || id == R.id.pty_title
         || id == R.id.btnMarket
@@ -338,7 +336,7 @@ public final class LayoutAuditInstrumentation extends Instrumentation {
         ((TextView) MainActivity.active().findViewById(R.id.app_title))
             .getText()
             .toString()
-            .equals(com.deepseekharness.app.util.UiText.text("配置")),
+            .equals(MainActivity.active().getString(R.string.ui2_runtime_config)),
         "子页标题错误");
     require(
         MainActivity.active().findViewById(R.id.sub_back).getVisibility() == View.VISIBLE,

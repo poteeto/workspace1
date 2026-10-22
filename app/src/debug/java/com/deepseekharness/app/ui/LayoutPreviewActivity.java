@@ -165,9 +165,7 @@ public final class LayoutPreviewActivity extends AppCompatActivity {
       nav.setSelectedItemId(
           title.equals("插件")
               ? R.id.nav_plugins
-              : title.equals("终端")
-                  ? R.id.nav_terminal
-                  : title.equals("启动") ? R.id.nav_launch : R.id.nav_settings);
+              : title.equals("启动") ? R.id.nav_launch : R.id.nav_settings);
     }
     frame.addView(
         canvas,
