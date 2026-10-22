@@ -22,7 +22,7 @@ jobs:
           bash -n tools/build-official-apks.sh
           python3 -m py_compile tools/verify-official-apk.py tools/test-verify-official-apk.py
       - name: Prove release identity, signer, version and debuggable failures are rejected
-        run: python3 -m unittest discover -s tools -p 'test-verify-official-apk.py' -v
+        run: python3 tools/test-verify-official-apk.py -v
       - name: Assert repository contains only reference fingerprints, not a publishing keystore
         run: |
           test -f ci/release-identity.json
