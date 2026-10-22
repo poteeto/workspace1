@@ -61,4 +61,16 @@ assert m is not None
 version=json.loads((ROOT/"tools/dsh-runtime/package.json").read_text())["dependencies"]["@deepseek-ai/dsh"]
 assert m.group(1)==version,("Android version mismatch",m.group(1),version)
 
+# The single-card support group must never start with a divider. A previous
+# cleanup removed two menu rows but accidentally left their two 1dp strokes.
+settings=parse(RES/"layout/fragment_settings.xml")
+support=[x for x in settings.iter() if x.get(ANDROID+"text")=="@string/ui2_support"]
+assert len(support)==1,"Expected exactly one Support heading"
+body=list(settings)[0]
+children=list(body)
+group=children[children.index(support[0])+1]
+assert group.tag=="LinearLayout" and group.get(ANDROID+"background")=="@drawable/bg_card"
+assert len(list(group))==1, "Support group contains an orphan divider or duplicate row"
+assert list(group)[0].get(ANDROID+"id")=="@+id/settings_about","Support should open directly with About"
+
 print("PASS: unified official DeepSeek monochrome vector across native main, welcome and About; semantic status colors intact; DSH versions aligned.")
