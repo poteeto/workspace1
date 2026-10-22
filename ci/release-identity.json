@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "packageName": "com.dsh.client",
-  "certificateSha256": "52c1746ea586585f43a087fce81cae1e1c89dfa130c09c2b66c64029be7f93a6",
+  "certificateSha256": "c61f876e7dc688a52484b9a4da38040acc193ffec5f329b0511a32014367b601",
   "schemes": [
     "v1",
     "v2",
     "v3"
   ],
-  "githubSigningState": "bootstrap-authorized"
+  "githubSigningState": "active"
 }
