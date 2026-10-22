@@ -543,6 +543,7 @@ public final class BoundedGuestSessions {
 
   private static void publishCompletion(BackupFileSystem fs, File files, File entry, String id)
       throws IOException {
+    BoundedGuestBootRecovery.supersedeWithNativeProof(fs, files, entry, id);
     File retain = fs.child(entry, "retain");
     if (fs.stat(retain).type.equals("MISSING")) return;
     if (!"RECORDED_OWNER\n".equals(new String(fs.small(retain, 64), StandardCharsets.US_ASCII)))
