@@ -114,19 +114,8 @@ fi
   --out "$output" "$aligned"
 python3 tools/verify-official-apk.py --apk "$output" --flavor standard \
   --aapt "$aapt" --apksigner "$apksigner"
-python3 tools/verify-apk-runtime-contract.py "$output"
-python3 - "$unsigned" "$output" <<'PY'
-import sys,zipfile
-with zipfile.ZipFile(sys.argv[1]) as before,zipfile.ZipFile(sys.argv[2]) as after:
-    assert after.testzip() is None
-    names=('AndroidManifest.xml', 'assets/dsh-runtime.bin',
-           'assets/offline-rootfs.bin', 'assets/runtime-descriptor.json')
-    for name in names:
-        a,b=before.getinfo(name),after.getinfo(name)
-        if (a.file_size,a.CRC)!=(b.file_size,b.CRC):
-            raise SystemExit('SIGNED_APK_CONTENT_DRIFT:'+name)
-print('GITHUB_SIGNED_APK_CONTENT_VERIFIED')
-PY
+python3 tools/verify-signed-apk-content.py "$unsigned" "$output"
+python3 tools/verify-apk-runtime-contract.py "$output" --verified-apk "$unsigned"
 
 # Escrow FIRST so we do not publish an APK whose signing key cannot be reused.
 if [[ "$bootstrap" == "1" ]]; then

@@ -23,9 +23,15 @@ def sha_stream(stream):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('apk',type=Path)
+    parser.add_argument('--verified-apk',type=Path,
+                        help='Same-run candidate already checked against generated build inputs')
     args=parser.parse_args()
     if not args.apk.is_file():raise SystemExit('APK_NOT_FOUND')
-    source=json.loads((ASSETS/'runtime-descriptor.json').read_text(encoding='utf8'))
+    if args.verified_apk:
+        with zipfile.ZipFile(args.verified_apk) as candidate:
+            source=json.loads(candidate.read('assets/runtime-descriptor.json'))
+    else:
+        source=json.loads((ASSETS/'runtime-descriptor.json').read_text(encoding='utf8'))
     deployment=json.loads((ROOT/'tools/asset-deployment.json').read_text(encoding='utf8'))
     renamed=deployment.get('sourceTransforms',{})
     # The asset builder copies gzip source bytes to .bin names to prevent AAPT
