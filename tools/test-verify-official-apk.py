@@ -2,7 +2,7 @@
 """Pure logic checks for the fail-closed local release identity gate.
 
 The actual APK cryptographic signature is validated by Android apksigner when
-tools/build-official-apks.sh runs with a real E7E3 keystore.
+tools/build-official-apks.sh runs with the user's fixed new v179+ keystore.
 """
 import importlib.util
 import pathlib
@@ -46,6 +46,22 @@ class OfficialReleaseGateTest(unittest.TestCase):
     def test_exact_cert_version_and_scheme_pass(self):
         self.check()
         self.check("low", badging=self.badging.replace(self.name, self.name + "low"))
+
+    def test_standard_v3_signature_is_sufficient_on_android_11(self):
+        v3_only = self.signed.replace("Verified using v1 scheme (JAR signing): true",
+                                      "Verified using v1 scheme (JAR signing): false").replace(
+            "Verified using v2 scheme (APK Signature Scheme v2): true",
+            "Verified using v2 scheme (APK Signature Scheme v2): false")
+        self.check(signature=v3_only)
+
+    def test_low_requires_all_signature_schemes(self):
+        low_badging = self.badging.replace(self.name, self.name + "low")
+        for mode in ("v1", "v2", "v3"):
+            damaged = self.signed.replace(
+                next(line for line in self.signed.splitlines() if "Verified using " + mode + " scheme" in line),
+                next(line for line in self.signed.splitlines() if "Verified using " + mode + " scheme" in line).replace(": true", ": false"))
+            with self.subTest(scheme=mode), self.assertRaisesRegex(ValueError, "MISSING_REQUIRED"):
+                self.check("low",badging=low_badging,signature=damaged)
 
     def test_wrong_signer_rejected(self):
         bad = self.signed.replace(module.IDENTITY["certificateSha256"], "f" * 64)

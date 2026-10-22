@@ -45,3 +45,10 @@ scr_backup.png
 # 本机工具状态与服务器取证，不进入公开仓库
 .zcode/
 website-evidence/
+
+# Fixed v179+ signing identity: NEVER publish PKCS12/JKS, credentials or backups
+*.p12
+*.jks
+*.keystore
+DSHA-SIGNING-KEY-RECOVERY.txt
+DSHA-FUTURE-UPDATE-KEY-BACKUP-PRIVATE.zip

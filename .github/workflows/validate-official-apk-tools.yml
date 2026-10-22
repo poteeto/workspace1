@@ -1,4 +1,4 @@
-name: Validate local E7E3 release gates
+name: Validate fixed DSHA publishing signature gates
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
@@ -28,3 +28,5 @@ jobs:
           test -f ci/release-identity.json
           test ! -f DSHA-ACTUAL-PUBLISH-KEY-debug.keystore
           test ! -f app/DSHA-ACTUAL-PUBLISH-KEY-debug.keystore
+          test ! -f DSHA-KEEP-PRIVATE-PUBLISH-KEY-v1.p12
+          test ! -f app/DSHA-KEEP-PRIVATE-PUBLISH-KEY-v1.p12

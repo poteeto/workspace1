@@ -2,7 +2,7 @@
 """Fail-closed checks for a locally signed, release-mode DSHA APK.
 
 This does not create signatures. apksigner must validate the actual APK and
-the signer must equal the historical, in-place-upgrade-compatible certificate.
+the signer must equal the fixed v179+ publishing certificate, not the old E7E3 identity.
 """
 import argparse
 import json
@@ -54,7 +54,7 @@ def verify(apk, flavor, aapt, apksigner):
         raise ValueError("APK_IS_DEBUGGABLE")
 
     # apksigner returns nonzero for cryptographically invalid or malformed signatures.
-    signatures = run(str(apksigner), "verify", "--verbose", "--print-certs", str(apk))
+    signatures = run(str(apksigner), "verify", "--min-sdk-version", "23" if flavor == "low" else "30", "--verbose", "--print-certs", str(apk))
     signers = re.findall(
         r"^Signer #(\d+) certificate SHA-256 digest: ([0-9a-fA-F:]{64,95})\s*$",
         signatures, flags=re.MULTILINE)
@@ -62,10 +62,12 @@ def verify(apk, flavor, aapt, apksigner):
         raise ValueError("APK_SIGNER_COUNT_INVALID")
     actual_cert = signers[0][1].replace(":", "").lower()
     if actual_cert != want_cert:
-        raise ValueError("APK_PUBLISH_CERTIFICATE_NOT_HISTORICAL_E7E3")
+        raise ValueError("APK_PUBLISH_CERTIFICATE_NOT_FIXED_V179_KEY")
 
-    # The historical release identity intentionally requires all three signature schemes.
-    for scheme in IDENTITY.get("schemes", []):
+    # Android chooses the strongest scheme for an OS level, so Android 11+
+    # Standard needs v3, while Low (Android 6+) requires v1/v2/v3 compatibility.
+    required = IDENTITY.get("schemes", []) if flavor == "low" else ["v3"]
+    for scheme in required:
         scheme_name = {"v1": "v1 scheme", "v2": "v2 scheme", "v3": "v3 scheme"}.get(scheme)
         if not scheme_name:
             raise ValueError("UNKNOWN_REQUIRED_SIGNATURE_SCHEME")
@@ -73,7 +75,7 @@ def verify(apk, flavor, aapt, apksigner):
             r"^Verified using " + re.escape(scheme_name) + r"\b[^\n]*:\s*true\s*$",
             signatures, flags=re.MULTILINE | re.IGNORECASE):
             raise ValueError("MISSING_REQUIRED_" + scheme.upper() + "_SIGNATURE")
-    print("HISTORICAL_CERTIFICATE_VERIFIED", package, version_code, flavor, actual_cert)
+    print("FIXED_PUBLISH_CERTIFICATE_VERIFIED", package, version_code, flavor, actual_cert)
 
 
 def main():

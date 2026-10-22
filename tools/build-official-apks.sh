@@ -3,11 +3,11 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-: "${DSHA_KEYSTORE:?Historical E7E3 signing keystore is required; cannot release Debug APK}"
+: "${DSHA_KEYSTORE:?Fixed v179 DSHA publishing keystore is required; cannot release Debug APK}"
 : "${DSHA_KEYSTORE_PASSWORD:?Missing signing keystore password}"
 : "${DSHA_KEY_PASSWORD:?Missing signing key password}"
 if [[ ! -f "$DSHA_KEYSTORE" ]]; then
-  echo "Historical signing key not present; refusing official release." >&2
+  echo "Fixed publishing key not present; refusing official release." >&2
   exit 1
 fi
 if [[ -z "${ANDROID_HOME:-}" && -z "${ANDROID_SDK_ROOT:-}" ]]; then
@@ -23,18 +23,18 @@ for tool in "$aapt" "$apksigner"; do
 done
 flavor="${1:-standard}"
 case "$flavor" in
-  standard) gradleTask="assembleStandardRelease"; apk="app/build/outputs/apk/standard/release/app-standard-release.apk"; outfile="dsha-0.2.1-rc2.1.apk" ;;
-  low) gradleTask="assembleLowRelease"; apk="app/build/outputs/apk/low/release/app-low-release.apk"; outfile="dsha-0.2.1-rc2.1low.apk" ;;
+  standard) gradleTask="assembleStandardRelease"; apk="app/build/outputs/apk/standard/release/app-standard-release.apk"; outfile="dsha-0.2.29.apk" ;;
+  low) gradleTask="assembleLowRelease"; apk="app/build/outputs/apk/low/release/app-low-release.apk"; outfile="dsha-0.2.29low.apk" ;;
   *) echo "Specify standard or low." >&2; exit 1 ;;
 esac
-# Gradle refuses releases without the historical signing key, and checks
+# Gradle refuses releases without the fixed new signing key, and checks
 # that its certificate equals ci/release-identity.json BEFORE packing.
 chmod +x gradlew
 ./gradlew ":app:$gradleTask" --no-daemon --max-workers=2
 python3 tools/verify-official-apk.py \
   --apk "$apk" --flavor "$flavor" --aapt "$aapt" --apksigner "$apksigner"
 python3 tools/verify-apk-runtime-contract.py "$apk"
-dest="${DSHA_RELEASE_DIR:-release/0.2.1-rc2.1}"
+dest="${DSHA_RELEASE_DIR:-release/0.2.29}"
 mkdir -p "$dest"
 # Write only after all checks pass; never overwrite existing release bytes.
 if [[ -e "$dest/$outfile" || -e "$dest/$outfile.sha256" ]]; then
@@ -43,4 +43,4 @@ if [[ -e "$dest/$outfile" || -e "$dest/$outfile.sha256" ]]; then
 fi
 cp -- "$apk" "$dest/$outfile"
 (cd "$dest" && sha256sum "$outfile" > "$outfile.sha256")
-echo "LOCALLY_VERIFIED_E7E3_RELEASE $dest/$outfile"
+echo "LOCALLY_VERIFIED_FIXED_KEY_RELEASE $dest/$outfile"
