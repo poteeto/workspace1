@@ -3,4 +3,6 @@
     <item name="overlay_confirm_allow" type="id" />
     <item name="overlay_confirm_deny" type="id" />
     <item name="overlay_preview_button" type="id" />
+    <item name="settings_advanced_tools" type="id" />
+    <item name="advanced_terminal" type="id" />
 </resources>

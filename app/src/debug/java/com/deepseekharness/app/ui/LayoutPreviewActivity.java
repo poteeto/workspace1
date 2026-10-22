@@ -154,7 +154,8 @@ public final class LayoutPreviewActivity extends AppCompatActivity {
           scene.contains("config")
               || scene.contains("workspace")
               || scene.equals("fragment_install")
-              || scene.contains("device_grants");
+              || scene.contains("device_grants")
+              || scene.contains("terminal");
       visible(R.id.sub_back, nested);
       visible(R.id.app_logo, !nested);
       ((TextView) canvas.findViewById(R.id.btn_theme))

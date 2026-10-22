@@ -183,6 +183,7 @@ public class SettingsFragment extends Fragment {
     row.setPadding(dp(13), dp(11), dp(13), dp(11));
     row.setMinimumHeight(dp(64));
     row.setFocusable(true);
+    if (index == TAB_OPTIONS.length - 1) row.setId(R.id.settings_advanced_tools);
     // 用主题的 selectableItemBackground（Material ripple），不用 Holo 的黄色 list_selector
     TypedValue tv = new TypedValue();
     requireContext().getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true);

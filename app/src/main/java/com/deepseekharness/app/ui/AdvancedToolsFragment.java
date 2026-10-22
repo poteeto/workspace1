@@ -40,7 +40,7 @@ public final class AdvancedToolsFragment extends Fragment {
 
     row(list, R.drawable.ic_terminal, UiText.choose("终端", "Terminal"),
         UiText.choose("PTY 命令行、交互程序和简易终端", "PTY shell and interactive command-line tools"),
-        () -> open(MainActivity.terminalPage(requireContext())));
+        () -> open(MainActivity.terminalPage(requireContext()))).setId(R.id.advanced_terminal);
     row(list, R.drawable.ic_ui2_box, UiText.choose("检查与修复环境", "Check and repair environment"),
         UiText.choose("检测组件、按需修复及恢复中断维护", "Check components and recover interrupted maintenance"),
         () -> open(new InstallFragment()));
@@ -50,7 +50,7 @@ public final class AdvancedToolsFragment extends Fragment {
     return scroll;
   }
 
-  private void row(LinearLayout list, int iconRes, String label, String subtitle, Runnable action) {
+  private View row(LinearLayout list, int iconRes, String label, String subtitle, Runnable action) {
     LinearLayout row = new LinearLayout(requireContext());
     row.setOrientation(LinearLayout.HORIZONTAL);
     row.setGravity(Gravity.CENTER_VERTICAL);
@@ -87,6 +87,7 @@ public final class AdvancedToolsFragment extends Fragment {
     TextView arrow = text("›", 18, R.color.text_muted);
     row.addView(arrow);
     row.setOnClickListener(v -> action.run());
+    return row;
   }
 
   private TextView text(String value, int size, int color) {
