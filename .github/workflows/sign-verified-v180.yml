@@ -1,5 +1,9 @@
 name: Sign verified DSHA v180 release
-on: workflow_dispatch
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths: ['.github/workflows/sign-verified-v180.yml']
+  workflow_dispatch:
 permissions:
   contents: write
   actions: read
