@@ -32,6 +32,7 @@ on:
       - app/src/main/assets/runtime-patches.json
       - tools/report-apk-size.py
       - tools/verify-monochrome-ui.py
+      - tools/ci-install-ndk.sh
       - tools/ci-github-sign-release.sh
       - tools/github-signing-state.py
       - tools/test-github-signing-state.py
@@ -69,7 +70,8 @@ jobs:
           platform=$(python3 tools/ci-toolchain.py --field androidPlatform)
           buildtools=$(python3 tools/ci-toolchain.py --field buildTools)
           ndk=$(python3 tools/ci-toolchain.py --field ndk)
-          sdkmanager "platforms;$platform" "build-tools;$buildtools" "ndk;$ndk"
+          timeout --kill-after=10s 300s sdkmanager "platforms;$platform" "build-tools;$buildtools"
+          bash tools/ci-install-ndk.sh
           sudo apt-get update -qq
           sudo apt-get install -y -qq gcc-13-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-dev-arm64-cross
       - name: Restore immutable baseline Ubuntu assets from checksum-verified official APK
