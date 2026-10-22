@@ -364,6 +364,8 @@ jobs:
             echo "::warning::SIGNED_APK_NOT_PUBLISHED: configure all three permanent GitHub Actions repository secrets."
             echo "## Signed APK not published" >> "$GITHUB_STEP_SUMMARY"
             echo "Missing repository secrets: DSHA_KEYSTORE_B64, DSHA_KEYSTORE_PASSWORD, or DSHA_KEY_PASSWORD. Debug/unsigned artifacts are not official releases." >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::FIXED_SIGNING_KEY_NOT_CONFIGURED: refusing to mark this build successful without a signed release."
+            exit 1
           fi
       - name: Install Android APK alignment and signature verification tools
         if: steps.signing.outputs.ready == 'true'
