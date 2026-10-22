@@ -130,6 +130,10 @@ if [[ "$bootstrap" == "1" ]]; then
   git -c user.name='github-actions[bot]' \
       -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
       commit -m 'Store GitHub-generated DSHA signing identity and encrypted escrow'
+  # The branch may advance while this long build is running (for example,
+  # documentation-only commits). Rebase the escrow-only commit safely.
+  git fetch origin "$GITHUB_REF_NAME"
+  git rebase "origin/$GITHUB_REF_NAME"
   git push origin "HEAD:$GITHUB_REF_NAME"
   echo "GITHUB_SIGNING_KEY_SECURELY_ESCROWED"
 fi
