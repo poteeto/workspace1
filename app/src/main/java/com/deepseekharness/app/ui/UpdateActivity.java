@@ -23,6 +23,15 @@ public final class UpdateActivity extends AppCompatActivity {
   @Override
   protected void onCreate(Bundle saved) {
     super.onCreate(saved);
+    if (!UpdatePolicy.appUpdateEnabled()) {
+      Toast.makeText(this,
+          com.deepseekharness.app.util.UiText.choose(
+              "定制版已停用应用内升级；仅使用经项目验证、同签名的 APK 覆盖更新。",
+              "In-app updates are disabled for this customized build."),
+          Toast.LENGTH_LONG).show();
+      finish();
+      return;
+    }
     setContentView(R.layout.activity_update);
     repository = new ViewModelProvider(this).get(UpdateRepository.class);
     resumeInstall = saved != null && saved.getBoolean("resumeInstall");
