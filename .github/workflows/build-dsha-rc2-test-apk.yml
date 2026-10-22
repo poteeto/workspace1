@@ -163,6 +163,42 @@ jobs:
             :app:compileLowReleaseJavaWithJavac \
             -Pdsha.unsignedPackage=true --no-daemon --max-workers=2
           echo 'Release Java compilations only; unsigned output is NOT a formal APK.'
+      - name: Package Standard non-debug Release candidate (unsigned until E7E3 key is supplied)
+        shell: bash
+        run: |
+          ./gradlew :app:assembleStandardRelease -Pdsha.unsignedPackage=true --no-daemon --max-workers=2
+      - name: Verify actual non-debug release package identity and complete runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/standard/release/app-standard-release-unsigned.apk
+          test -s "$apk"
+          aapt="$ANDROID_HOME/build-tools/$(python3 tools/ci-toolchain.py --field buildTools)/aapt"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/release-badging.txt"
+          grep -F "package: name='com.dsh.client' versionCode='179' versionName='0.2.29-20261022.1135-dsh0.2.1-rc.2'" "$RUNNER_TEMP/release-badging.txt"
+          if grep -q 'application-debuggable' "$RUNNER_TEMP/release-badging.txt"; then
+            echo "Non-debug release is debuggable; stop." >&2
+            exit 1
+          fi
+          python3 tools/verify-apk-runtime-contract.py "$apk"
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,zipfile
+          apk=Path('app/build/outputs/apk/standard/release/app-standard-release-unsigned.apk')
+          with zipfile.ZipFile(apk) as archive:
+              assert archive.testzip() is None
+              assert 'assets/dsh-runtime.bin' in archive.namelist()
+              assert 'assets/offline-rootfs.bin' in archive.namelist()
+          print('RELEASE_CANDIDATE_CHECKED_UNSIGNED_NOT_INSTALLABLE',apk.stat().st_size,hashlib.sha256(apk.read_bytes()).hexdigest())
+          PY
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: DSHA-v179-STANDARD-UNSIGNED-RELEASE-CANDIDATE-NEEDS-E7E3
+          path: app/build/outputs/apk/standard/release/app-standard-release-unsigned.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
       - name: Assemble standalone Android kernel-peer instrumentation
         shell: bash
         run: |
@@ -244,7 +280,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v178-NATIVE-V2
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v179-NATIVE-V2
           path: app/build/outputs/apk/standard/debug/*.apk
           compression-level: 0
           retention-days: 14
@@ -252,7 +288,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: DSHA-v178-ARM64-NATIVE-V2-ANDROIDTEST
+          name: DSHA-v179-ARM64-NATIVE-V2-ANDROIDTEST
           path: app/build/outputs/apk/androidTest/standard/debug/*.apk
           if-no-files-found: error
           retention-days: 14
@@ -283,11 +319,11 @@ jobs:
           test -f "$ANDROID_AVD_HOME/dsha-kvm.avd/config.ini"
       - uses: actions/download-artifact@v4
         with:
-          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v178-NATIVE-V2
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v179-NATIVE-V2
           path: packaged/main
       - uses: actions/download-artifact@v4
         with:
-          name: DSHA-v178-ARM64-NATIVE-V2-ANDROIDTEST
+          name: DSHA-v179-ARM64-NATIVE-V2-ANDROIDTEST
           path: packaged/tests
       - name: Prove kernel peer and ECHILD using APK built in THIS workflow run
         run: bash tools/android-kvm-bridge-test.sh packaged/main packaged/tests
@@ -295,7 +331,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DSHA-v178-ANDROID-KVM-NATIVE-V2-EVIDENCE
+          name: DSHA-v179-ANDROID-KVM-NATIVE-V2-EVIDENCE
           path: emulator-evidence/
           if-no-files-found: warn
           retention-days: 14
