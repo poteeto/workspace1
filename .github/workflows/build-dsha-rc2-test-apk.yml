@@ -5,7 +5,37 @@ concurrency:
 on:
   push:
     branches: ['upgrade/dsh-0.2.1-rc.2']
-    paths: [.github/workflows/build-dsha-rc2-test-apk.yml, app/build.gradle, app/src/main/res/**, app/src/main/java/com/deepseekharness/app/ui/**, app/src/main/java/com/deepseekharness/app/util/Constants.java, app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeTools.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeLauncher.java, app/src/main/java/com/deepseekharness/app/runtime/RuntimeExecution.java, app/src/main/java/com/deepseekharness/app/runtime/ColdToolsInstaller.java, app/src/main/java/com/deepseekharness/app/runtime/IsolatedInstallProcess.java, app/src/main/java/com/deepseekharness/app/runtime/OwnedBirthEvidence.java, app/src/androidTest/java/com/deepseekharness/app/runtime/OwnedBirthAndroidInstrumentation.java, app/src/androidTest/java/com/deepseekharness/app/core/RecoveryInstrumentation.java, app/src/main/java/com/deepseekharness/app/util/ColdInstallPlan.java, app/src/test/java/com/deepseekharness/app/runtime/RuntimeLauncherTest.java, app/src/test/java/com/deepseekharness/app/util/ColdInstallPlanTest.java, app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java, tools/verify-runtime-installation.py, tools/verify-runtime-archive.py, tools/verify-managed-runtime-syntax.py, tools/verify-apk-runtime-contract.py, tools/verify-cold-runtime-qualification.py, app/src/main/assets/runtime-patches.json, tools/report-apk-size.py, tools/verify-monochrome-ui.py, tools/ci-restore-upstream-base.py, tools/recovery_runtime_overlay.py, tools/prepare-recovery-assets.py, tools/recovery-runtime/legacy-patches/**]
+    paths:
+      - .github/workflows/build-dsha-rc2-test-apk.yml
+      - app/build.gradle
+      - app/src/main/res/**
+      - app/src/main/java/com/deepseekharness/app/ui/**
+      - app/src/main/java/com/deepseekharness/app/core/UpdateEngine.java
+      - app/src/main/java/com/deepseekharness/app/core/UpdateRepository.java
+      - app/src/main/java/com/deepseekharness/app/UpdateDownloadService.java
+      - app/src/main/java/com/deepseekharness/app/util/UpdatePolicy.java
+      - app/src/main/java/com/deepseekharness/app/util/Constants.java
+      - app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java
+      - app/src/main/java/com/deepseekharness/app/util/ColdInstallPlan.java
+      - app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java
+      - app/src/main/java/com/deepseekharness/app/runtime/**
+      - app/src/main/java/com/deepseekharness/app/recovery/**
+      - app/src/debug/java/com/deepseekharness/app/ui/**
+      - app/src/androidTest/java/com/deepseekharness/app/runtime/**
+      - app/src/androidTest/java/com/deepseekharness/app/core/**
+      - app/src/test/java/**
+      - tools/verify-runtime-installation.py
+      - tools/verify-runtime-archive.py
+      - tools/verify-managed-runtime-syntax.py
+      - tools/verify-apk-runtime-contract.py
+      - tools/verify-cold-runtime-qualification.py
+      - app/src/main/assets/runtime-patches.json
+      - tools/report-apk-size.py
+      - tools/verify-monochrome-ui.py
+      - tools/ci-restore-upstream-base.py
+      - tools/recovery_runtime_overlay.py
+      - tools/prepare-recovery-assets.py
+      - tools/recovery-runtime/legacy-patches/**
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -120,6 +150,19 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew :app:assembleStandardDebug --no-daemon --max-workers=2
+      - name: Verify both Android editions compile and JUnit regressions pass
+        shell: bash
+        run: |
+          ./gradlew :app:compileLowDebugJavaWithJavac \
+            :app:testStandardDebugUnitTest :app:testLowDebugUnitTest \
+            --no-daemon --max-workers=2
+      - name: Compile non-debug release variants without access to publishing secrets
+        shell: bash
+        run: |
+          ./gradlew :app:compileStandardReleaseJavaWithJavac \
+            :app:compileLowReleaseJavaWithJavac \
+            -Pdsha.unsignedPackage=true --no-daemon --max-workers=2
+          echo 'Release Java compilations only; unsigned output is NOT a formal APK.'
       - name: Assemble standalone Android kernel-peer instrumentation
         shell: bash
         run: |
