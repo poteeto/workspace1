@@ -21,16 +21,16 @@ import com.deepseekharness.app.core.HarnessController;
 import java.util.function.Supplier;
 
 /**
- * 设置页：模块入口（安装/配置/数据与备份）+ 其他（更新/自检/重新解压/关于）。
+ * 定制版设置：高频配置和高级维护分开；不提供原项目的 APK 更新入口。
  */
 public class SettingsFragment extends Fragment {
 
   private static final TabOption[] TAB_OPTIONS = {
-    new TabOption("安装", "安装与修复运行环境", InstallFragment::new, R.drawable.ic_ui2_box),
-    new TabOption("配置", "接口、显示与运行", ConfigFragment::new, R.drawable.ic_settings),
-    new TabOption("数据与备份", "备份恢复 · 文件共享", WorkspaceFragment::new, R.drawable.ic_ui2_folder),
-    new TabOption(
-        "设备能力授权", "Root · Shizuku · ADB · 权限", DeviceGrantsFragment::new, R.drawable.ic_ui_shield),
+    new TabOption("模型与接口", "Models & API", "服务商、密钥、模型目录", "Providers, keys and models", ModelSetupActivity.class, R.drawable.ic_settings),
+    new TabOption("运行与显示", "Runtime & display", "网络、网页内核与运行参数", "Network, browser engine and runtime", ConfigFragment::new, R.drawable.ic_settings),
+    new TabOption("数据与备份", "Data & backup", "文件、备份和恢复", "Files, backup and restore", WorkspaceFragment::new, R.drawable.ic_ui2_folder),
+    new TabOption("设备能力授权", "Device permissions", "读屏、Root、Shizuku 和 ADB", "Screen control, Root, Shizuku and ADB", DeviceGrantsFragment::new, R.drawable.ic_ui_shield),
+    new TabOption("高级工具", "Advanced tools", "终端、环境检查修复、诊断", "Terminal, environment checks and diagnostics", AdvancedToolsFragment::new, R.drawable.ic_terminal),
   };
 
   @Nullable
@@ -100,8 +100,6 @@ public class SettingsFragment extends Fragment {
     }
     TextView ver = v.findViewById(R.id.settings_ver);
     ver.setText(com.deepseekharness.app.util.UiText.format("DSHA v%s · MIT 许可", version));
-    TextView updateSub = v.findViewById(R.id.settings_update_sub);
-    updateSub.setText(com.deepseekharness.app.util.UiText.text("稳定版与预览版更新"));
 
     v.findViewById(R.id.settings_about)
         .setOnClickListener(
@@ -110,8 +108,6 @@ public class SettingsFragment extends Fragment {
                     .replace(R.id.fragment_container, new AboutFragment())
                     .addToBackStack("settings")
                     .commit());
-    v.findViewById(R.id.settings_update).setOnClickListener(x -> checkUpdate());
-    v.findViewById(R.id.settings_selftest).setOnClickListener(x -> runSelftest());
 
     // 语言入口：标题在中文界面下也带英文「Language」（只写「语言 · 简体中文」时，
     // 非中文用户根本认不出这是语言开关）；摘要直接显示当前生效语言。
@@ -179,14 +175,6 @@ public class SettingsFragment extends Fragment {
     return v;
   }
 
-  private void runSelftest() {
-    startActivity(new Intent(requireContext(), DiagnosticActivity.class));
-  }
-
-  private void checkUpdate() {
-    startActivity(new Intent(requireContext(), UpdateActivity.class));
-  }
-
   private LinearLayout buildRow(final int index) {
     TabOption opt = TAB_OPTIONS[index];
     LinearLayout row = new LinearLayout(requireContext());
@@ -210,18 +198,13 @@ public class SettingsFragment extends Fragment {
     body.setLayoutParams(bodyParams);
 
     TextView title = new TextView(requireContext());
-    title.setText(
-        index == 0
-            ? getString(R.string.ui2_install_environment)
-            : index == 1
-                ? getString(R.string.ui2_runtime_config)
-                : com.deepseekharness.app.util.UiText.text(opt.title));
+    title.setText(com.deepseekharness.app.util.UiText.choose(opt.title, opt.titleEn));
     title.setTextSize(13);
     title.setTextColor(requireContext().getColor(R.color.text));
     title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
 
     TextView sub = new TextView(requireContext());
-    sub.setText(com.deepseekharness.app.util.UiText.text(opt.sub));
+    sub.setText(com.deepseekharness.app.util.UiText.choose(opt.sub, opt.subEn));
     sub.setTextSize(11);
     sub.setTextColor(requireContext().getColor(R.color.text_muted));
     LinearLayout.LayoutParams slp =
@@ -267,23 +250,26 @@ public class SettingsFragment extends Fragment {
   }
 
   private static final class TabOption {
-    final String title;
-    final String sub;
+    final String title, titleEn, sub, subEn;
     final Supplier<Fragment> factory;
     final Class<? extends android.app.Activity> activity;
     final int icon;
 
-    TabOption(String title, String sub, Supplier<Fragment> factory, int icon) {
+    TabOption(String title, String titleEn, String sub, String subEn, Supplier<Fragment> factory, int icon) {
       this.title = title;
+      this.titleEn = titleEn;
       this.sub = sub;
+      this.subEn = subEn;
       this.factory = factory;
       this.activity = null;
       this.icon = icon;
     }
 
-    TabOption(String title, String sub, Class<? extends android.app.Activity> activity, int icon) {
+    TabOption(String title, String titleEn, String sub, String subEn, Class<? extends android.app.Activity> activity, int icon) {
       this.title = title;
+      this.titleEn = titleEn;
       this.sub = sub;
+      this.subEn = subEn;
       this.factory = null;
       this.activity = activity;
       this.icon = icon;
