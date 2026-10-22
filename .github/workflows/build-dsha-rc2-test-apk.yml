@@ -163,7 +163,7 @@ jobs:
             :app:compileLowReleaseJavaWithJavac \
             -Pdsha.unsignedPackage=true --no-daemon --max-workers=2
           echo 'Release Java compilations only; unsigned output is NOT a formal APK.'
-      - name: Package Standard non-debug Release candidate (unsigned until E7E3 key is supplied)
+      - name: Package Standard non-debug Release candidate (signing happens after emulator verification)
         shell: bash
         run: |
           ./gradlew :app:assembleStandardRelease -Pdsha.unsignedPackage=true --no-daemon --max-workers=2
@@ -194,7 +194,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: DSHA-v179-STANDARD-UNSIGNED-RELEASE-CANDIDATE-NEEDS-E7E3
+          name: DSHA-v179-STANDARD-UNSIGNED-RELEASE-CANDIDATE
           path: app/build/outputs/apk/standard/release/app-standard-release-unsigned.apk
           if-no-files-found: error
           compression-level: 0
@@ -335,3 +335,108 @@ jobs:
           path: emulator-evidence/
           if-no-files-found: warn
           retention-days: 14
+
+  # Signing secrets are needed only in this job, after build + emulator proof.
+  # Release APK must use the permanent v179+ signing identity, never Debug.
+  publish-signed-zip:
+    name: Verify permanent signature and upload directly downloadable ZIP
+    needs: [test-apk, android-kvm-native-v2]
+    if: github.ref == 'refs/heads/upgrade/dsh-0.2.1-rc.2'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions: {contents: read}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check whether permanent signing secrets have been installed
+        id: signing
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.DSHA_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.DSHA_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.DSHA_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$KEYSTORE_BASE64" && -n "$STORE_PASSWORD" && -n "$KEY_PASSWORD" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Permanent signing secrets are present. Release verification will run."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SIGNED_APK_NOT_PUBLISHED: configure all three permanent GitHub Actions repository secrets."
+            echo "## Signed APK not published" >> "$GITHUB_STEP_SUMMARY"
+            echo "Missing repository secrets: DSHA_KEYSTORE_B64, DSHA_KEYSTORE_PASSWORD, or DSHA_KEY_PASSWORD. Debug/unsigned artifacts are not official releases." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Install Android APK alignment and signature verification tools
+        if: steps.signing.outputs.ready == 'true'
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install source-pinned Android build tools
+        if: steps.signing.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          buildtools="$(python3 tools/ci-toolchain.py --field buildTools)"
+          sdkmanager "build-tools;$buildtools"
+      - name: Download tested non-debug APK from this workflow run
+        if: steps.signing.outputs.ready == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: DSHA-v179-STANDARD-UNSIGNED-RELEASE-CANDIDATE
+          path: unsigned-release
+      - name: Align, sign with permanent key, verify identity and package, create SHA256
+        if: steps.signing.outputs.ready == 'true'
+        shell: bash
+        env:
+          DSHA_KEYSTORE_B64: ${{ secrets.DSHA_KEYSTORE_B64 }}
+          DSHA_KEYSTORE_PASSWORD: ${{ secrets.DSHA_KEYSTORE_PASSWORD }}
+          DSHA_KEY_PASSWORD: ${{ secrets.DSHA_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          tools="$ANDROID_HOME/build-tools/$(python3 tools/ci-toolchain.py --field buildTools)"
+          unsigned="unsigned-release/app-standard-release-unsigned.apk"
+          aligned="$RUNNER_TEMP/dsha-release-aligned.apk"
+          keystore="$RUNNER_TEMP/dsha-publish.p12"
+          outdir="verified-signed-release"
+          output="$outdir/dsha-0.2.29.apk"
+          trap 'rm -f "$keystore" "$aligned"' EXIT
+          test -s "$unsigned"
+          mkdir -p "$outdir"
+          printf '%s' "$DSHA_KEYSTORE_B64" | base64 --decode > "$keystore"
+          test "$(stat -c %s "$keystore")" -gt 1000
+          "$tools/zipalign" -P 16 -f 4 "$unsigned" "$aligned"
+          "$tools/apksigner" sign \
+            --ks "$keystore" --ks-type PKCS12 --ks-key-alias dsha-publish \
+            --ks-pass env:DSHA_KEYSTORE_PASSWORD --key-pass env:DSHA_KEY_PASSWORD \
+            --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
+            --out "$output" "$aligned"
+          # Fail closed on wrong certificate, wrong Android package/version,
+          # debug builds, corrupt APK, or missing runtime assets.
+          python3 tools/verify-official-apk.py \
+            --apk "$output" --flavor standard \
+            --aapt "$tools/aapt" --apksigner "$tools/apksigner"
+          python3 tools/verify-apk-runtime-contract.py "$output"
+          python3 - "$unsigned" "$output" <<'PY'
+          import sys,zipfile
+          with zipfile.ZipFile(sys.argv[1]) as before,zipfile.ZipFile(sys.argv[2]) as after:
+              names=('AndroidManifest.xml','assets/dsh-runtime.bin',
+                     'assets/offline-rootfs.bin','assets/runtime-descriptor.json')
+              for name in names:
+                  a,b=before.getinfo(name),after.getinfo(name)
+                  if (a.file_size,a.CRC)!=(b.file_size,b.CRC):
+                      raise SystemExit('SIGNED_APK_CONTENT_DRIFT:'+name)
+          print('SIGNED_RELEASE_CONTENT_CRC_MATCH')
+          PY
+          (cd "$outdir" && sha256sum dsha-0.2.29.apk > dsha-0.2.29.apk.sha256)
+          echo "## Verified signed v179 APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "Package: com.dsh.client; signing identity: 52c1746ea586585f43a087fce81cae1e1c89dfa130c09c2b66c64029be7f93a6" >> "$GITHUB_STEP_SUMMARY"
+          echo "Download the DSHA-v179-PERMANENTLY-SIGNED-STANDARD-APK artifact as a ZIP." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload permanent-key-signed installable APK ZIP
+        if: steps.signing.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSHA-v179-PERMANENTLY-SIGNED-STANDARD-APK
+          path: verified-signed-release/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
