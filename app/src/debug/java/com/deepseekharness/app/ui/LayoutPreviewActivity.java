@@ -160,9 +160,16 @@ public final class LayoutPreviewActivity extends AppCompatActivity {
               || scene.contains("terminal");
       visible(R.id.sub_back, nested);
       visible(R.id.app_logo, !nested);
-      ((TextView) canvas.findViewById(R.id.btn_theme))
-          .setText(
-              com.deepseekharness.app.util.UiText.text(ThemeController.isDark(this) ? "黑夜" : "白天"));
+      // Match MainActivity.renderThemeButton: production uses an icon, not the retired label.
+      TextView theme = canvas.findViewById(R.id.btn_theme);
+      theme.setText("");
+      String preference = ThemeController.preference(this);
+      theme.setCompoundDrawablesWithIntrinsicBounds(
+          com.deepseekharness.app.util.UiThemePreference.SYSTEM.equals(preference)
+              ? R.drawable.ic_ui2_auto
+              : com.deepseekharness.app.util.UiThemePreference.LIGHT.equals(preference)
+                  ? R.drawable.ic_ui2_sun : R.drawable.ic_ui2_moon,
+          0, 0, 0);
       com.google.android.material.bottomnavigation.BottomNavigationView nav =
           canvas.findViewById(R.id.bottom_nav);
       nav.setSelectedItemId(
