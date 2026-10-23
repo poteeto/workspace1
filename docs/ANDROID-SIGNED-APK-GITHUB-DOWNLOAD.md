@@ -1,6 +1,6 @@
 # GitHub 固定签名与安装包下载
 
-当前发布流程：v182（0.2.32）验证版，分支 upgrade/dsh-0.2.1-rc.2；沿用 v180 开始使用的固定签名。
+当前发布流程：v183（0.2.33）验证版，分支 upgrade/dsh-0.2.1-rc.2；沿用 v180 开始使用的固定签名。
 
 ## 唯一发布身份
 
@@ -14,9 +14,9 @@
 
 用户要求以后更新完成后以 GitHub Releases 为交付入口，提供签名 APK、SHA256 校验文件和验证记录；回复优先提供 GitHub 下载链接。本机文件仅作临时校验副本，源码推送和 Actions artifact 都不能单独作为交付完成。
 
-[v182 验证版 Release](https://github.com/poteeto/workspace1/releases/tag/v0.2.32) 提供 `dsha-0.2.32.apk`、对应 `.sha256` 和 `verification.json`。修复普通清后台后重开误进维护页；v180/v181 可同签名覆盖。验证版标为 prerelease，并明确尚未在原 realme 手机验收。
+[v183 验证版 Release](https://github.com/poteeto/workspace1/releases/tag/v0.2.33) 提供 `dsha-0.2.33.apk`、对应 `.sha256` 和 `verification.json`。自动小窗改为默认关闭的独立开关，首页启动日志移到单独页面；保留普通清后台后重开修复，v180–v182 可同签名覆盖。验证版标为 prerelease，并明确尚未在原 realme 手机验收。
 
-工作流 .github/workflows/build-dsha-rc2-test-apk.yml 构建 Standard 非调试候选、验证运行时、双版单测和 Release Lint，并用同次 Debug APK 检查 Android 15 模拟器中的原生进程协议、断线恢复和连续三次应用重开。签名任务随后签署同次 Release 候选，检查证书、版本和内容，再上传 DSHA-v182-GITHUB-KEY-SIGNED-STANDARD-APK，作为待发布 Release 的输入。Artifact 保留 30 天，下载需登录 GitHub；未签名候选和 Debug 包不能代替签名发布包。
+工作流 .github/workflows/build-dsha-rc2-test-apk.yml 构建 Standard 非调试候选、验证运行时、双版单测和 Release Lint，并用同次 Debug APK 检查 Android 15 模拟器中的原生进程协议、断线恢复和连续三次应用重开。签名任务随后签署同次 Release 候选，检查证书、版本和内容，再上传 DSHA-v183-GITHUB-KEY-SIGNED-STANDARD-APK，作为 Release 的输入。`publish-verified-dsha.yml` 按 `ci/verified-release.json` 核对完整构建与相同 APK 字节，在 GitHub 内上传三个附件，核对上传摘要后发布；已有同名不同内容时停止，不直接覆盖。Artifact 保留 30 天，下载需登录 GitHub；未签名候选和 Debug 包不能代替签名发布包。
 
 模拟器的原生进程协议检查不等于 Release APK 的真实手机全功能验收。
 
