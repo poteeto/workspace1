@@ -102,7 +102,6 @@ public final class BoundedGuestSessions {
       try {
         publishCompletion(fs, home.getParentFile(), entry, id);
         remove(entry, fs);
-        active.remove(id);
         fs.syncDirectory(home);
         active.remove(id, this);
       } catch (IOException failure) {
@@ -411,6 +410,7 @@ public final class BoundedGuestSessions {
           throw new IOException("BOUNDED_GUEST_SESSION_LIVE_OR_UNKNOWN:" + id);
         publishCompletion(fs, home.getParentFile(), entry, id);
         remove(entry, fs);
+        active.remove(id);
       } catch (java.io.InterruptedIOException cancelled) {
         throw cancelled;
       } catch (IOException | RuntimeException failure) {
