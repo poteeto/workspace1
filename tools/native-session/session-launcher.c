@@ -62,6 +62,7 @@ static int receive_line(int fd, char *value, size_t limit, int timeout) {
 #endif
 static int receipt_fd = -1;
 static char receipt_birth[160];
+static const char *receipt_self_stat;
 static int private_directory(const char *path) {
     if (!path || path[0] != '/' || strlen(path) >= 4096) return -1;
     char parts[4096]; strcpy(parts, path + 1);
@@ -191,7 +192,9 @@ static int no_guest(int control) {
     int status, subreaper = 0;
     if (waitpid(-1, &status, __WALL | WNOHANG) != -1 || errno != ECHILD
         || prctl(PR_GET_CHILD_SUBREAPER, &subreaper, 0, 0, 0) || subreaper != 1) return 125;
-    /* 若 START 尚未到达，宿主可能还没写 identity；仍可通过原连接确认未派发。 */
+    /* START 前断线也可能已有持久 identity。无 guest 的 ECHILD 同样直接落盘。 */
+    if (receipt_fd >= 0 && !*receipt_birth && receipt_self_stat)
+        (void)receipt_bind(receipt_self_stat);
     if (*receipt_birth && persist_tree(125)) return 125;
     if (send_line(control, "NO_GUEST\n")
         || send_line(control, "COMMAND_EXITED 125\n")
@@ -246,6 +249,7 @@ int main(int argc, char **argv) {
     if (identity >= 0) close(identity);
     if (length <= 0 || stat[length-1] != '\n') return 125;
     stat[length] = 0;
+    receipt_self_stat = stat;
     if (!existing_pty && (printf("DSHA_SESSION_STAT_V1 %s", stat) < 0 || fflush(stdout))) return 125;
     if (send_line(control, "READY DSHA_OWNED_TREE_V2\n")) return 125;
     /* 无 guest 前才允许握手超时退出；STDIN 不参与控制，保留 piped-input 与 PTY。 */

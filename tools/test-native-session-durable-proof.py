@@ -67,6 +67,13 @@ class DurableProofTest(unittest.TestCase):
         self.assertEqual(identity + 'ECHILD 143\n', (entry / 'tree-empty').read_text())
         self.assertFalse((entry / 'tree-empty.native').exists())
 
+    def test_disconnect_before_start_proves_no_guest_without_reboot(self):
+        child, entry, identity, control, reader = self.launch('echo SHOULD_NOT_RUN')
+        reader.close(); control.close()
+        self.assertEqual(125, child.wait(timeout=3))
+        self.assertEqual(identity + 'ECHILD 125\n', (entry / 'tree-empty').read_text())
+        self.assertNotIn(b'SHOULD_NOT_RUN', child.stdout.read())
+
     def test_proof_is_durable_before_notification_and_missing_commit_keeps_command_code(self):
         child, entry, identity, control, reader = self.launch('exit 7')
         control.sendall(b'START\n')

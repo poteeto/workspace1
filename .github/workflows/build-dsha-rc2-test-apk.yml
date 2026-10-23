@@ -33,6 +33,8 @@ on:
       - tools/report-apk-size.py
       - tools/verify-monochrome-ui.py
       - tools/ci-install-ndk.sh
+      - tools/native-session/session-launcher.c
+      - tools/test-native-session-durable-proof.py
       - tools/ci-github-sign-release.sh
       - tools/github-signing-state.py
       - tools/test-github-signing-state.py
