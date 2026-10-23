@@ -86,9 +86,16 @@ set -e
 cat emulator-evidence/launch-preferences.txt
 test "$status" = 0 || { echo "LAUNCH_PREFERENCES_TIMEOUT_OR_CRASH";exit 1; }
 grep -q 'ANDROID_AUTO_PIP_OPT_IN_AND_SEPARATE_LOG_PAGE_PASS' emulator-evidence/launch-preferences.txt || { echo "LAUNCH_PREFERENCES_FAILED";exit 1; }
+layout_status=0
 for language in zh en; do
+ set +e
  bounded 240 "$ADB" shell am instrument -w -r -e mode style -e layout_only true -e language "$language" -e scenes launch_idle,launch_error,fragment_config,activity_startup_log com.dsh.client/com.deepseekharness.app.ui.LayoutAuditInstrumentation >"emulator-evidence/layout-$language.txt" 2>&1
+ status=$?
+ set -e
  cat "emulator-evidence/layout-$language.txt"
- grep -q 'result=PASS' "emulator-evidence/layout-$language.txt" || { echo "NATIVE_LAYOUT_FAILED_$language";exit 1; }
  "$ADB" exec-out run-as com.dsh.client tar -C cache -cf - layout-audit >"emulator-evidence/layout-$language.tar"
+ if [ "$status" -ne 0 ] || ! grep -q 'result=PASS' "emulator-evidence/layout-$language.txt";then
+  echo "NATIVE_LAYOUT_FAILED_$language";layout_status=1
+ fi
 done
+exit "$layout_status"

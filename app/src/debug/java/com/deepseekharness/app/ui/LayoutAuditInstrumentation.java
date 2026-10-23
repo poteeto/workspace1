@@ -332,11 +332,18 @@ public final class LayoutAuditInstrumentation extends Instrumentation {
                 .getChildAt(1)
                 .performClick());
     until(() -> MainActivity.active().findViewById(R.id.config_save) != null, "配置页未打开");
-    require(
-        ((TextView) MainActivity.active().findViewById(R.id.app_title))
-            .getText()
-            .toString()
-            .equals(MainActivity.active().getString(R.string.ui2_runtime_config)),
+    // 新 View 创建早于页面切换动画完成；标题由 onFragmentResumed 更新。
+    // 等待实际就绪，不能在退出中的设置页仍占据工具栏时立即断言。
+    until(
+        () ->
+            MainActivity.active().getSupportFragmentManager()
+                    .findFragmentById(R.id.fragment_container) instanceof ConfigFragment
+                && MainActivity.active().getSupportFragmentManager()
+                    .findFragmentById(R.id.fragment_container).isResumed()
+                && ((TextView) MainActivity.active().findViewById(R.id.app_title))
+                    .getText()
+                    .toString()
+                    .equals(MainActivity.active().getString(R.string.ui2_runtime_config)),
         "子页标题错误");
     require(
         MainActivity.active().findViewById(R.id.sub_back).getVisibility() == View.VISIBLE,
@@ -348,7 +355,9 @@ public final class LayoutAuditInstrumentation extends Instrumentation {
         () ->
             MainActivity.active() != null
                 && MainActivity.active() != before
-                && MainActivity.active().findViewById(R.id.config_save) != null,
+                && MainActivity.active().findViewById(R.id.config_save) != null
+                && MainActivity.active().getSupportFragmentManager()
+                    .findFragmentById(R.id.fragment_container).isResumed(),
         "主题切换丢失子页");
     require(
         ((EditText) MainActivity.active().findViewById(R.id.config_port))
@@ -357,7 +366,11 @@ public final class LayoutAuditInstrumentation extends Instrumentation {
             .equals("39081"),
         "主题切换丢失未保存输入");
     ui(() -> MainActivity.active().findViewById(R.id.sub_back).performClick());
-    until(() -> MainActivity.active().findViewById(R.id.settings_tabs) != null, "返回设置失败");
+    until(
+        () -> MainActivity.active().findViewById(R.id.settings_tabs) != null
+            && MainActivity.active().getSupportFragmentManager().getBackStackEntryCount() == 0
+            && MainActivity.active().findViewById(R.id.sub_back).getVisibility() == View.GONE,
+        "返回设置失败");
     require(
         MainActivity.active().findViewById(R.id.sub_back).getVisibility() == View.GONE,
         "根页面仍显示子页返回");
