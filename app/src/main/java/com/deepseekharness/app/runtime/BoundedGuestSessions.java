@@ -148,7 +148,7 @@ public final class BoundedGuestSessions {
     return operation;
   }
 
-  /** Read-only startup/maintenance gate: even an unfinished intent requires recovery. */
+  /** Read-only process barrier for file replacement; this is not an installation health check. */
   public static String firstPending(File filesDir) throws IOException {
     return firstPending(new AndroidBackupFileSystem(), filesDir.getCanonicalFile());
   }

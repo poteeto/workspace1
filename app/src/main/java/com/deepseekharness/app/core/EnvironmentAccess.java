@@ -43,7 +43,8 @@ public final class EnvironmentAccess {
           false,
           true,
           com.deepseekharness.app.core.MaintenanceCoordinator.isEnvironmentTaskBusy(),
-          com.deepseekharness.app.core.MaintenanceCoordinator.pending(controller),
+          com.deepseekharness.app.core.MaintenanceCoordinator.pending(controller)
+              || replacementUnconfirmed(controller.context().getFilesDir()),
           candidate,
           controller
               .context()
@@ -54,6 +55,16 @@ public final class EnvironmentAccess {
       // 不能认证 APK 自带的运行时描述时，不得由 START_STICKY/看门狗启动旧 Web。
       return com.deepseekharness.app.util.EnvironmentIdentity.shouldBlockRuntimeStart(
           false, false, false, false, "", "");
+    }
+  }
+
+  /** An old run can postpone file replacement without making a healthy installation unusable. */
+  private static boolean replacementUnconfirmed(java.io.File files) {
+    try {
+      return com.deepseekharness.app.runtime.BoundedGuestSessions.firstPending(files) != null;
+    } catch (java.io.IOException unreadableHistory) {
+      // Keep the replacement barrier; a missing process receipt is not a damaged environment.
+      return true;
     }
   }
 }

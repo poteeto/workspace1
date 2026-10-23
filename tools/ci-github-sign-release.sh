@@ -36,7 +36,7 @@ cipher="ci/github-signing/dsha-permanent-release.p12.gpg"
 marker="ci/github-signing/certificate.sha256"
 identity="ci/release-identity.json"
 outdir="verified-signed-release"
-output="$outdir/dsha-0.2.31.apk"
+output="$outdir/dsha-0.2.32.apk"
 mkdir -p "$(dirname "$cipher")" "$outdir"
 bootstrap=0
 
@@ -136,11 +136,11 @@ if [[ "$bootstrap" == "1" ]]; then
   echo "GITHUB_SIGNING_KEY_SECURELY_ESCROWED"
 fi
 
-(cd "$outdir" && sha256sum dsha-0.2.31.apk > dsha-0.2.31.apk.sha256)
+(cd "$outdir" && sha256sum dsha-0.2.32.apk > dsha-0.2.32.apk.sha256)
 {
-  echo "## GitHub-generated, permanently signed DSHA v181"
+  echo "## GitHub-generated, permanently signed DSHA v182"
   echo "Signing certificate SHA-256: \`$certificate\`"
   echo "GitHub Actions generated and securely escrowed this key; no ChatGPT-cloud keystore is used."
-  echo "Download the DSHA-v181-GITHUB-KEY-SIGNED-STANDARD-APK artifact as a ZIP."
+  echo "Download the DSHA-v182-GITHUB-KEY-SIGNED-STANDARD-APK artifact as a ZIP."
 } >> "$GITHUB_STEP_SUMMARY"
 echo "GITHUB_PERMANENTLY_SIGNED_RELEASE_READY $certificate"

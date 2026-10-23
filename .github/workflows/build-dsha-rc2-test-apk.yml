@@ -40,6 +40,11 @@ on:
       - tools/test-github-signing-state.py
       - ci/release-identity.json
       - app/src/main/java/com/deepseekharness/app/core/BackupTask.java
+      - app/src/main/java/com/deepseekharness/app/core/EnvironmentAccess.java
+      - app/src/main/java/com/deepseekharness/app/backup/HostMaintenancePending.java
+      - app/src/debug/java/com/deepseekharness/app/runtime/**
+      - app/src/debug/AndroidManifest.xml
+      - tools/android-kvm-bridge-test.sh
       - app/src/main/java/com/deepseekharness/app/core/ErrorLogRepository.java
       - tools/ci-restore-upstream-base.py
       - tools/recovery_runtime_overlay.py
@@ -175,6 +180,18 @@ jobs:
             :app:compileLowReleaseJavaWithJavac \
             -Pdsha.unsignedPackage=true --no-daemon --max-workers=2
           echo 'Release Java compilations only; unsigned output is NOT a formal APK.'
+      - name: Lint both non-debug release editions
+        run: ./gradlew :app:lintStandardRelease :app:lintLowRelease -Pdsha.unsignedPackage=true --no-daemon --max-workers=2
+      - name: Preserve unit-test and release-lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSHA-v182-UNIT-AND-LINT-REPORTS
+          path: |
+            app/build/test-results/
+            app/build/reports/lint-results-*.xml
+          if-no-files-found: warn
+          retention-days: 14
       - name: Package Standard non-debug Release candidate (signing happens after emulator verification)
         shell: bash
         run: |
@@ -187,7 +204,7 @@ jobs:
           test -s "$apk"
           aapt="$ANDROID_HOME/build-tools/$(python3 tools/ci-toolchain.py --field buildTools)/aapt"
           "$aapt" dump badging "$apk" > "$RUNNER_TEMP/release-badging.txt"
-          grep -F "package: name='com.dsh.client' versionCode='181' versionName='0.2.31-20261023.1810-dsh0.2.1-rc.2'" "$RUNNER_TEMP/release-badging.txt"
+          grep -F "package: name='com.dsh.client' versionCode='182' versionName='0.2.32-20261023.1820-dsh0.2.1-rc.2'" "$RUNNER_TEMP/release-badging.txt"
           if grep -q 'application-debuggable' "$RUNNER_TEMP/release-badging.txt"; then
             echo "Non-debug release is debuggable; stop." >&2
             exit 1
@@ -206,7 +223,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: DSHA-v181-STANDARD-UNSIGNED-RELEASE-CANDIDATE
+          name: DSHA-v182-STANDARD-UNSIGNED-RELEASE-CANDIDATE
           path: app/build/outputs/apk/standard/release/app-standard-release-unsigned.apk
           if-no-files-found: error
           compression-level: 0
@@ -292,7 +309,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v181-NATIVE-V2
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v182-NATIVE-V2
           path: app/build/outputs/apk/standard/debug/*.apk
           compression-level: 0
           retention-days: 14
@@ -300,7 +317,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: DSHA-v181-ARM64-NATIVE-V2-ANDROIDTEST
+          name: DSHA-v182-ARM64-NATIVE-V2-ANDROIDTEST
           path: app/build/outputs/apk/androidTest/standard/debug/*.apk
           if-no-files-found: error
           retention-days: 14
@@ -331,11 +348,11 @@ jobs:
           test -f "$ANDROID_AVD_HOME/dsha-kvm.avd/config.ini"
       - uses: actions/download-artifact@v4
         with:
-          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v181-NATIVE-V2
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v182-NATIVE-V2
           path: packaged/main
       - uses: actions/download-artifact@v4
         with:
-          name: DSHA-v181-ARM64-NATIVE-V2-ANDROIDTEST
+          name: DSHA-v182-ARM64-NATIVE-V2-ANDROIDTEST
           path: packaged/tests
       - name: Prove kernel peer and ECHILD using APK built in THIS workflow run
         run: bash tools/android-kvm-bridge-test.sh packaged/main packaged/tests
@@ -343,7 +360,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DSHA-v181-ANDROID-KVM-NATIVE-V2-EVIDENCE
+          name: DSHA-v182-ANDROID-KVM-NATIVE-V2-EVIDENCE
           path: emulator-evidence/
           if-no-files-found: warn
           retention-days: 14
@@ -392,7 +409,7 @@ jobs:
       - name: Download non-debug APK from THIS SAME tested workflow run
         uses: actions/download-artifact@v4
         with:
-          name: DSHA-v181-STANDARD-UNSIGNED-RELEASE-CANDIDATE
+          name: DSHA-v182-STANDARD-UNSIGNED-RELEASE-CANDIDATE
           path: unsigned-release
       - name: Create or reuse GitHub-generated key, verify and sign release
         env:
@@ -402,7 +419,7 @@ jobs:
       - name: Upload installable permanently signed APK as direct-download ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: DSHA-v181-GITHUB-KEY-SIGNED-STANDARD-APK
+          name: DSHA-v182-GITHUB-KEY-SIGNED-STANDARD-APK
           path: verified-signed-release/
           if-no-files-found: error
           compression-level: 0

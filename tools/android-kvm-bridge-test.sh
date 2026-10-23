@@ -53,3 +53,25 @@ if [ "$status" -ne 0 ] || ! grep -q 'ANDROID_NATIVE_BIRTH_AND_ECHILD_PASS' emula
  echo "ANDROID_ARM_BRIDGE_KERNEL_SESSION_NOT_CONFIRMED";exit 1
 fi
 echo "ANDROID_KERNEL_NATIVE_BRIDGE_OWNED_SESSION_PASS"
+
+# Real app process deaths, without rebooting Android. Preserve a legacy unknown record throughout.
+for cycle in 1 2 3; do
+ bounded 10 "$ADB" shell run-as com.dsh.client rm -f files/restart-fixture-ready
+ bounded 20 "$ADB" shell am start -W -n com.dsh.client/com.deepseekharness.app.runtime.OrdinaryRestartFixtureActivity >"emulator-evidence/reopen-$cycle-start.txt"
+ fixture=0
+ for _ in $(seq 1 30); do
+  if bounded 4 "$ADB" shell run-as com.dsh.client cat files/restart-fixture-ready 2>/dev/null | grep -q '^READY ';then fixture=1;break;fi
+  sleep 1
+ done
+ test "$fixture" = 1 || { echo "ORDINARY_RESTART_FIXTURE_NOT_READY";exit 1; }
+ if [ "$cycle" = 2 ];then
+  bounded 10 "$ADB" shell input keyevent KEYCODE_HOME
+  bounded 10 "$ADB" shell am kill com.dsh.client
+ else
+  bounded 10 "$ADB" shell am force-stop com.dsh.client
+ fi
+ bounded 100 "$ADB" shell am instrument -w -r -e restart_verify true com.dsh.client.test/com.deepseekharness.app.runtime.OwnedBirthAndroidInstrumentation >"emulator-evidence/reopen-$cycle-verify.txt" 2>&1
+ cat "emulator-evidence/reopen-$cycle-verify.txt"
+ grep -q 'ANDROID_ORDINARY_REOPEN_WITH_OLD_RECORD_PASS' "emulator-evidence/reopen-$cycle-verify.txt" || { echo "ORDINARY_APP_REOPEN_FAILED";exit 1; }
+done
+echo "ANDROID_THREE_APP_REOPEN_CYCLES_WITHOUT_REBOOT_PASS"
