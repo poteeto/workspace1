@@ -36,7 +36,20 @@ cipher="ci/github-signing/dsha-permanent-release.p12.gpg"
 marker="ci/github-signing/certificate.sha256"
 identity="ci/release-identity.json"
 outdir="verified-signed-release"
-output="$outdir/dsha-0.2.32.apk"
+read -r apk_version version_code < <(python3 - <<'PY'
+import re
+from pathlib import Path
+source = Path('app/build.gradle').read_text(encoding='utf-8')
+versions = re.findall(r"^ext\.dshaApkNameVersion = '([0-9]+\.[0-9]+\.[0-9]+)'$", source, re.M)
+codes = re.findall(r'^\s*versionCode (\d+)\s*$', source, re.M)
+if len(versions) != 1 or len(codes) != 1:
+    raise SystemExit('RELEASE_FILENAME_VERSION_UNDETERMINED')
+print(versions[0], codes[0])
+PY
+)
+test -n "$apk_version" && test -n "$version_code"
+apk_name="dsha-$apk_version.apk"
+output="$outdir/$apk_name"
 mkdir -p "$(dirname "$cipher")" "$outdir"
 bootstrap=0
 
@@ -136,11 +149,11 @@ if [[ "$bootstrap" == "1" ]]; then
   echo "GITHUB_SIGNING_KEY_SECURELY_ESCROWED"
 fi
 
-(cd "$outdir" && sha256sum dsha-0.2.32.apk > dsha-0.2.32.apk.sha256)
+(cd "$outdir" && sha256sum "$apk_name" > "$apk_name.sha256")
 {
-  echo "## GitHub-generated, permanently signed DSHA v182"
+  echo "## GitHub-generated, permanently signed DSHA v$version_code"
   echo "Signing certificate SHA-256: \`$certificate\`"
   echo "GitHub Actions generated and securely escrowed this key; no ChatGPT-cloud keystore is used."
-  echo "Download the DSHA-v182-GITHUB-KEY-SIGNED-STANDARD-APK artifact as a ZIP."
+  echo "Download the DSHA-v$version_code-GITHUB-KEY-SIGNED-STANDARD-APK artifact as a ZIP."
 } >> "$GITHUB_STEP_SUMMARY"
 echo "GITHUB_PERMANENTLY_SIGNED_RELEASE_READY $certificate"
