@@ -12,9 +12,15 @@ import com.deepseekharness.app.util.Constants;
 /** 真实页面入口、日志滚动以及系统自动小窗偏好；不安装 Ubuntu、不运行 DSH。 */
 public final class LaunchLogAudit extends Instrumentation {
   private int checks;
+  private void note(String value) {
+    Bundle progress = new Bundle();
+    progress.putString("stream", value + "\n");
+    sendStatus(0, progress);
+  }
   private void check(boolean value, String reason) {
     checks++;
     if (!value) throw new AssertionError(reason);
+    note("PASS " + reason);
   }
   private void ui(Runnable work) {
     Throwable[] failure = {null};
@@ -23,8 +29,14 @@ public final class LaunchLogAudit extends Instrumentation {
     waitForIdleSync();
   }
   private <T extends Activity> T open(Class<T> type) {
-    return type.cast(startActivitySync(new Intent(getTargetContext(), type)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
+    note("OPEN " + type.getSimpleName());
+    // startActivitySync waits for a NEW Activity. Reusing a task root would only deliver an
+    // intent to the existing host, leaving the instrumentation waiting for an absent creation.
+    T page = type.cast(startActivitySync(new Intent(getTargetContext(), type)
+        .setAction("launch-audit." + System.nanoTime())
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK)));
+    note("OPENED " + type.getSimpleName());
+    return page;
   }
   private void home() throws Exception {
     try (var fd = getUiAutomation().executeShellCommand("input keyevent KEYCODE_HOME");

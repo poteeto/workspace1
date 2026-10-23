@@ -14,7 +14,7 @@ except subprocess.TimeoutExpired: print("ANDROID_ADB_TIMEOUT",sys.argv[2:],flush
 "$EMULATOR" -avd dsha-kvm -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 3072 -no-snapshot -wipe-data -accel on >emulator-evidence/emulator.log 2>&1 &
 emu=$!
 cleanup(){
- bounded 12 "$ADB" logcat -d -v threadtime -t 3500 >emulator-evidence/logcat.txt 2>&1 || true
+ bounded 12 "$ADB" logcat -d -v threadtime -s 'AndroidRuntime:E' 'ActivityTaskManager:I' 'ActivityManager:I' 'DSHA-PiP:V' >emulator-evidence/logcat.txt 2>&1 || true
  bounded 12 "$ADB" emu kill >/dev/null 2>&1 || true
  kill "$emu" >/dev/null 2>&1 || true
 }
@@ -79,8 +79,12 @@ done
 echo "ANDROID_THREE_APP_REOPEN_CYCLES_WITHOUT_REBOOT_PASS"
 
 # Current UI behavior: real Android system PiP plus the production log page.
+set +e
 bounded 100 "$ADB" shell am instrument -w -r com.dsh.client/com.deepseekharness.app.ui.LaunchLogAudit >emulator-evidence/launch-preferences.txt 2>&1
+status=$?
+set -e
 cat emulator-evidence/launch-preferences.txt
+test "$status" = 0 || { echo "LAUNCH_PREFERENCES_TIMEOUT_OR_CRASH";exit 1; }
 grep -q 'ANDROID_AUTO_PIP_OPT_IN_AND_SEPARATE_LOG_PAGE_PASS' emulator-evidence/launch-preferences.txt || { echo "LAUNCH_PREFERENCES_FAILED";exit 1; }
 for language in zh en; do
  bounded 240 "$ADB" shell am instrument -w -r -e mode style -e layout_only true -e language "$language" -e scenes launch_idle,launch_error,fragment_config,activity_startup_log com.dsh.client/com.deepseekharness.app.ui.LayoutAuditInstrumentation >"emulator-evidence/layout-$language.txt" 2>&1
