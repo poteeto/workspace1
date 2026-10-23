@@ -1,0 +1,19 @@
+name: Native session durable exit recovery
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths:
+      - tools/native-session/session-launcher.c
+      - tools/test-native-session-durable-proof.py
+      - tools/test-native-session-handshake.py
+      - .github/workflows/native-session-recovery.yml
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  real-kernel-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/test-native-session-handshake.py
+      - run: python3 tools/test-native-session-durable-proof.py -v

@@ -60,7 +60,7 @@ jobs:
       - name: Rebuild verified bxroot ARM64 native inputs
         run: |
           ndk=$(python3 tools/ci-toolchain.py --field ndk)
-          sdkmanager "ndk;$ndk"
+          bash tools/ci-install-ndk.sh
           python3 tools/bxroot/build.py --help
       - name: Install exact published npm module for real JVM adapter regression
         working-directory: tools/dsh-runtime

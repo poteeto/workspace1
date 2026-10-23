@@ -75,6 +75,7 @@ final class IsolatedInstallProcess extends Process implements AutoCloseable, Own
       command.add(launcher);
       command.add("--birth-handshake");
       command.add(control.argument());
+      command.add(operation.receiptArgument());
       command.add(
           "--stop-signal="
               + ("proot".equals(target.environment().get("DSHA_RUNTIME_ENGINE"))

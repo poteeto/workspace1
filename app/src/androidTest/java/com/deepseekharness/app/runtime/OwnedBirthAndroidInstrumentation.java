@@ -37,6 +37,18 @@ public final class OwnedBirthAndroidInstrumentation extends Instrumentation {
       if (status != 0) throw new AssertionError("OWNED_PROCESS_EXIT_CODE_" + status);
       if (!running.confirmedTreeExit())
         throw new AssertionError("OWNED_PROCESS_TREE_EXIT_NOT_PROVEN");
+      // 真正关闭宿主连接，随后由 native 独立清理并落盘；无 COMMIT、无重启。
+      var longCommand = new ProcessBuilder("/system/bin/sh", "-c", "/system/bin/sleep 30");
+      longCommand.redirectErrorStream(true);
+      running = IsolatedInstallProcess.start(longCommand, context.getCacheDir(), context);
+      var field = IsolatedInstallProcess.class.getDeclaredField("control");
+      field.setAccessible(true);
+      ((NativeTreeControl) field.get(running)).close();
+      if (!running.waitFor(25, TimeUnit.SECONDS) || !running.confirmedTreeExit())
+        throw new AssertionError("DISCONNECTED_NATIVE_TREE_PROOF_NOT_RECOVERED");
+      if (BoundedGuestSessions.firstPending(context.getFilesDir()) != null)
+        throw new AssertionError("DISCONNECTED_NATIVE_RECORD_LEFT_PENDING");
+      outcome.putString("durableRecovery", "ANDROID_DISCONNECTED_NATIVE_PROOF_PASS");
       outcome.putString("result", "ANDROID_NATIVE_BIRTH_AND_ECHILD_PASS");
       finish(Activity.RESULT_OK, outcome);
     } catch (Throwable failure) {

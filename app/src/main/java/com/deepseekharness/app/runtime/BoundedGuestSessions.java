@@ -41,6 +41,19 @@ public final class BoundedGuestSessions {
       return id;
     }
 
+    String receiptArgument() {
+      return "--receipt-dir=" + entry.getAbsolutePath();
+    }
+
+    Integer savedTreeExit() throws IOException {
+      File proof = fs.child(entry, "tree-empty");
+      if (fs.stat(proof).type.equals("MISSING")) return null;
+      String birth = new String(fs.small(fs.child(entry, "identity"), 128), StandardCharsets.US_ASCII);
+      String tree = new String(fs.small(proof, 192), StandardCharsets.US_ASCII);
+      if (!validTree(birth, tree)) throw new IOException("OWNED_TREE_RECEIPT_MISSING");
+      return Integer.parseInt(tree.substring(birth.length() + 7).trim());
+    }
+
     void nativeProtocol() throws IOException {
       fs.atomic(entry, "protocol", "DSHA_OWNED_TREE_V2\n".getBytes(StandardCharsets.US_ASCII));
       fs.syncDirectory(entry);
@@ -52,6 +65,12 @@ public final class BoundedGuestSessions {
 
     void treeProof(int exitCode) throws IOException {
       if (exitCode < 0 || exitCode > 255) throw new IOException("OWNED_TREE_EXIT_CODE");
+      Integer saved = savedTreeExit();
+      if (saved != null) {
+        if (saved != exitCode) throw new IOException("OWNED_TREE_EXIT_CONFLICT");
+        fs.syncDirectory(entry);
+        return;
+      }
       String birth =
           new String(fs.small(fs.child(entry, "identity"), 128), StandardCharsets.US_ASCII);
       fs.atomic(
@@ -83,6 +102,7 @@ public final class BoundedGuestSessions {
       try {
         publishCompletion(fs, home.getParentFile(), entry, id);
         remove(entry, fs);
+        active.remove(id);
         fs.syncDirectory(home);
         active.remove(id, this);
       } catch (IOException failure) {
@@ -513,6 +533,13 @@ public final class BoundedGuestSessions {
     boolean intent = name.matches("intent\\.tmp-" + com.deepseekharness.app.util.Ids.UUID_PATTERN);
     boolean identity =
         name.matches("identity\\.tmp-" + com.deepseekharness.app.util.Ids.UUID_PATTERN);
+    if (name.equals("tree-empty.native")) {
+      File file = fs.child(entry, name);
+      BackupFileSystem.Node node = fs.stat(file);
+      if (!node.type.equals("FILE") || node.size > 192) return false;
+      // 中断的原生原子写只保留；临时文件从来不是树空证明。
+      return true;
+    }
     if (!intent && !identity) return false;
     File file = fs.child(entry, name);
     BackupFileSystem.Node node = fs.stat(file);
@@ -534,7 +561,8 @@ public final class BoundedGuestSessions {
     File identity = fs.child(entry, "identity"), intent = fs.child(entry, "intent");
     if (!fs.stat(identity).type.equals("MISSING")) fs.delete(identity);
     for (String name : fs.list(entry))
-      if (name.startsWith("intent.tmp-") || name.startsWith("identity.tmp-"))
+      if (name.startsWith("intent.tmp-") || name.startsWith("identity.tmp-")
+          || name.equals("tree-empty.native"))
         fs.delete(fs.child(entry, name));
     if (!fs.stat(intent).type.equals("MISSING")) fs.delete(intent);
     fs.syncDirectory(entry);

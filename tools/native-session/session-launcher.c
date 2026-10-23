@@ -14,6 +14,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -53,6 +54,94 @@ static int receive_line(int fd, char *value, size_t limit, int timeout) {
         value[used++] = byte;
     }
     return -1;
+}
+/* 退出证明直接由持有 ECHILD 的监督器发布，不能依赖仍存活的 Java 连接。
+ * 目录逐层 NOFOLLOW 打开并持有 fd；只接受本轮 self-stat 与宿主持久出生身份相同的记录。 */
+#ifndef O_PATH
+#define O_PATH 010000000
+#endif
+static int receipt_fd = -1;
+static char receipt_birth[160];
+static int private_directory(const char *path) {
+    if (!path || path[0] != '/' || strlen(path) >= 4096) return -1;
+    char parts[4096]; strcpy(parts, path + 1);
+    int fd = open("/", O_PATH | O_CLOEXEC);
+    if (fd < 0) return -1;
+    char *part = parts;
+    for (;;) {
+        char *next = strchr(part, '/');
+        if (next) *next = 0;
+        if (!*part || !strcmp(part, ".") || !strcmp(part, "..")) { close(fd); return -1; }
+        int child = openat(fd, part, (next ? O_PATH : O_RDONLY) | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        close(fd);
+        if (child < 0) return -1;
+        fd = child;
+        if (!next) break;
+        part = next + 1;
+    }
+    struct stat info;
+    if (fstat(fd, &info) || info.st_uid != geteuid() || (info.st_mode & 0077)) {
+        close(fd); return -1;
+    }
+    return fd;
+}
+static int record_read(const char *name, char *value, size_t limit) {
+    int fd = openat(receipt_fd, name, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) return -1;
+    struct stat info;
+    if (fstat(fd, &info) || !S_ISREG(info.st_mode) || info.st_uid != geteuid()
+        || info.st_nlink != 1 || info.st_size < 0 || (size_t)info.st_size >= limit) {
+        close(fd); return -1;
+    }
+    ssize_t got = read(fd, value, limit);
+    close(fd);
+    if (got != info.st_size || got < 0 || memchr(value, 0, (size_t)got)) return -1;
+    value[got] = 0;
+    return 0;
+}
+static int receipt_bind(const char *self_stat) {
+    if (receipt_fd < 0) return 0; /* Linux 独立协议夹具可不配置磁盘记录。Android 必须传入。 */
+    char intent[64], protocol[64], identity[160], stat_copy[8192];
+    if (record_read("intent", intent, sizeof(intent)) || strlen(intent) != 37 || intent[36] != '\n'
+        || record_read("protocol", protocol, sizeof(protocol)) || strcmp(protocol, "DSHA_OWNED_TREE_V2\n")
+        || record_read("identity", identity, sizeof(identity))) return -1;
+    for (int i = 0; i < 36; i++) {
+        if (i == 8 || i == 13 || i == 18 || i == 23) { if (intent[i] != '-') return -1; }
+        else if (!((intent[i] >= '0' && intent[i] <= '9') || (intent[i] >= 'a' && intent[i] <= 'f'))) return -1;
+    }
+    if (strlen(self_stat) >= sizeof(stat_copy)) return -1;
+    strcpy(stat_copy, self_stat);
+    char *end = strrchr(stat_copy, ')'), *save = NULL, *birth = NULL;
+    if (!end) return -1;
+    char *field = strtok_r(end + 1, " \n", &save);
+    for (int i = 0; field; i++, field = strtok_r(NULL, " \n", &save))
+        if (i == 19) { birth = field; break; }
+    if (!birth || !*birth || strspn(birth, "0123456789") != strlen(birth)) return -1;
+    int count = snprintf(receipt_birth, sizeof(receipt_birth), "%s%ld %s %ld\n", intent, (long)getpid(), birth, (long)getsid(0));
+    return count <= 0 || count >= (int)sizeof(receipt_birth) || strcmp(identity, receipt_birth) ? -1 : 0;
+}
+static int persist_tree(int code) {
+    if (receipt_fd < 0) return 0;
+    char birth[160], value[192], existing[192];
+    if (!*receipt_birth || record_read("identity", birth, sizeof(birth)) || strcmp(birth, receipt_birth)) return -1;
+    int count = snprintf(value, sizeof(value), "%sECHILD %d\n", receipt_birth, code);
+    if (count <= 0 || count >= (int)sizeof(value)) return -1;
+    /* 已有不同回执不覆盖；临时文件只会在真实 ECHILD 之后创建。 */
+    if (!record_read("tree-empty", existing, sizeof(existing)))
+        return strcmp(existing, value) ? -1 : fsync(receipt_fd);
+    int fd = openat(receipt_fd, "tree-empty.native", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0) return -1;
+    size_t written = 0;
+    while (written < (size_t)count) {
+        ssize_t n = write(fd, value + written, (size_t)count - written);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) { close(fd); return -1; }
+        written += (size_t)n;
+    }
+    int failed = fsync(fd); close(fd);
+    if (failed || linkat(receipt_fd, "tree-empty.native", receipt_fd, "tree-empty", 0)
+        || unlinkat(receipt_fd, "tree-empty.native", 0) || fsync(receipt_fd)) return -1;
+    return 0;
 }
 static int connection(const char *name) {
     struct sockaddr_un address = { .sun_family = AF_UNIX };
@@ -102,6 +191,8 @@ static int no_guest(int control) {
     int status, subreaper = 0;
     if (waitpid(-1, &status, __WALL | WNOHANG) != -1 || errno != ECHILD
         || prctl(PR_GET_CHILD_SUBREAPER, &subreaper, 0, 0, 0) || subreaper != 1) return 125;
+    /* 若 START 尚未到达，宿主可能还没写 identity；仍可通过原连接确认未派发。 */
+    if (*receipt_birth && persist_tree(125)) return 125;
     if (send_line(control, "NO_GUEST\n")
         || send_line(control, "COMMAND_EXITED 125\n")
         || send_line(control, "OWNED_TREE_EMPTY ECHILD\n")) return 125;
@@ -118,16 +209,21 @@ static int no_guest(int control) {
 int main(int argc, char **argv) {
     int command = 1, existing_pty = 0, stop_signal = SIGTERM;
     const char *control_name = NULL;
+    const char *receipt_path = NULL;
     for (; command < argc; command++) {
         if (!strcmp(argv[command], "--birth-handshake")) continue;
         if (!strcmp(argv[command], "--pty-existing-session")) { existing_pty = 1; continue; }
         if (!strncmp(argv[command], "--control=", 10)) { control_name = argv[command] + 10; continue; }
+        if (!strncmp(argv[command], "--receipt-dir=", 14)) { receipt_path = argv[command] + 14; continue; }
         if (!strncmp(argv[command], "--stop-signal=", 14)) { stop_signal = atoi(argv[command]+14); continue; }
         if (!strcmp(argv[command], "--")) { command++; break; }
         break;
     }
     if (command >= argc || !control_name || (stop_signal != SIGTERM && stop_signal != SIGQUIT)) {
         fputs("DSHA_SESSION_USAGE\n", stderr); return 125;
+    }
+    if (receipt_path && (receipt_fd = private_directory(receipt_path)) < 0) {
+        fputs("DSHA_SESSION_RECEIPT_DIRECTORY\n", stderr); return 125;
     }
     pid_t original_parent = getppid();
     if (original_parent <= 1) return 125;
@@ -158,6 +254,9 @@ int main(int argc, char **argv) {
     char message[128]; ssize_t got;
     if (receive_line(control, message, sizeof(message), 5000) || strcmp(message, "START")
         || stop_requested) return no_guest(control);
+    if (receipt_bind(stat)) {
+        fputs("DSHA_SESSION_RECEIPT_IDENTITY\n", stderr); return 125;
+    }
     int exec_error[2];
     if (pipe2(exec_error, O_CLOEXEC | O_NONBLOCK)) return no_guest(control);
     /* STOP may arrive immediately after STARTED, before the child resets inherited handlers. */
@@ -211,16 +310,21 @@ int main(int argc, char **argv) {
         if (main_reaped && waited < 0 && errno == ECHILD) {
             subreaper = 0;
             if (!prctl(PR_GET_CHILD_SUBREAPER, &subreaper, 0, 0, 0) && subreaper == 1) {
-                if (send_line(control, "OWNED_TREE_EMPTY ECHILD\n")) return 125;
+                if (persist_tree(main_code)) {
+                    send_line(control, "UNCONFIRMED RECEIPT_NOT_DURABLE\n"); return 125;
+                }
+                if (send_line(control, "OWNED_TREE_EMPTY ECHILD\n"))
+                    return receipt_fd >= 0 ? main_code : 125;
                 pollfd.revents = 0;
                 /* 回执落盘前保持监督器活着；丢连接不伪造宿主 closed。 */
                 long long commit_deadline = milliseconds() + 5000;
                 while (milliseconds() < commit_deadline) {
-                    if (receive_line(control, message, sizeof(message), (int)(commit_deadline - milliseconds()))) return 125;
+                    if (receive_line(control, message, sizeof(message), (int)(commit_deadline - milliseconds())))
+                        return receipt_fd >= 0 ? main_code : 125;
                     if (!strcmp(message, "COMMIT")) return main_code;
                     if (strcmp(message, "STOP") && strcmp(message, "HARD")) return 125;
                 }
-                return 125;
+                return receipt_fd >= 0 ? main_code : 125;
             }
             if (!notified++) send_line(control, "UNCONFIRMED SUBREAPER_CHANGED\n");
         }
