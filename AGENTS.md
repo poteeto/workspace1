@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> 2026-10-23 用户明确交付偏好：以后每次更新完成并通过相应验证后，必须将已签名 APK、SHA256 和验证记录发布到 poteeto/workspace1 的 GitHub Releases，并在回复中提供 GitHub 下载链接。只上传源码或 Actions artifact、只保存在本机都不算完成交付。本机文件仅作临时构建/校验副本。验证版应明确标为 prerelease，说明实际验收边界，不能因发布而夸大旧数据或真机恢复结果。此授权覆盖下方历史“不发布 Release”的限制。
+
 > 2026-10-23 当前用户要求继续从代码修复维护恢复故障。v181 / 0.2.31 将 ECHILD 证明改由原生监督器直接持久发布，并恢复断线后的宿主收尾；沿用 v180 固定证书。真实内核回归和 Android 验证分别记录，不宣称旧手机记录已经解除；旧 v180 未保存的证明不得追溯伪造。见 docs/releases/v0.2.31-build181-recovery.md。
 
 > 2026-10-22 当前用户授权覆盖下方历史签名/发布限制：修复升级分支及 GitHub Actions；在 GitHub 首次生成新固定发布密钥，加密存仓库、密码存 Actions Secret，后续必须复用，禁止隐式轮换。当前修复版本 v180 / 0.2.30。个人数据与外置文件保留；不把模拟器/单测写成真实设备通过。当前流程见 docs/ANDROID-SIGNED-APK-GITHUB-DOWNLOAD.md。
