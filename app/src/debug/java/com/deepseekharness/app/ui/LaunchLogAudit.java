@@ -62,7 +62,7 @@ public final class LaunchLogAudit extends Instrumentation {
       ui(() -> {
         check(!picture.onPictureInPictureRequested(), "DISABLED_SYSTEM_REQUEST_ENTERED_PIP");
         if (Build.VERSION.SDK_INT >= 31)
-          check(!picture.getPictureInPictureParams().isAutoEnterEnabled(), "SYSTEM_AUTO_ENTER_NOT_DISABLED");
+          check(!picture.appliedParameters().isAutoEnterEnabled(), "SYSTEM_AUTO_ENTER_NOT_DISABLED");
       });
       home();
       ui(() -> check(!picture.isInPictureInPictureMode(), "HOME_CREATED_UNWANTED_WINDOW"));
@@ -73,13 +73,13 @@ public final class LaunchLogAudit extends Instrumentation {
       Thread.sleep(350); waitForIdleSync();
       ui(() -> {
         if (Build.VERSION.SDK_INT >= 31)
-          check(enabled.getPictureInPictureParams().isAutoEnterEnabled(), "OPT_IN_DID_NOT_ENABLE_SYSTEM_AUTO_ENTER");
+          check(enabled.appliedParameters().isAutoEnterEnabled(), "OPT_IN_DID_NOT_ENABLE_SYSTEM_AUTO_ENTER");
         store.setPictureInPictureAutoEnter(false);
       });
       Thread.sleep(100); waitForIdleSync();
       ui(() -> {
         if (Build.VERSION.SDK_INT >= 31)
-          check(!enabled.getPictureInPictureParams().isAutoEnterEnabled(), "OPT_OUT_DID_NOT_REFRESH_EXISTING_PREVIEW");
+          check(!enabled.appliedParameters().isAutoEnterEnabled(), "OPT_OUT_DID_NOT_REFRESH_EXISTING_PREVIEW");
         store.setPictureInPictureAutoEnter(true);
       });
       Thread.sleep(150);

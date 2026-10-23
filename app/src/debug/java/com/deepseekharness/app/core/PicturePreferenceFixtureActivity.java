@@ -6,6 +6,12 @@ import com.deepseekharness.app.ui.PictureInPictureActivity;
 
 /** 调试夹具：用静态页面代替聊天内容，只测试真实宿主/系统小窗，不运行 DSH。 */
 public final class PicturePreferenceFixtureActivity extends PictureInPictureActivity {
+  private android.app.PictureInPictureParams applied;
+  @Override public void setPictureInPictureParams(android.app.PictureInPictureParams value) {
+    super.setPictureInPictureParams(value);
+    applied = value;
+  }
+  public android.app.PictureInPictureParams appliedParameters() { return applied; }
   @Override protected boolean pictureInPictureContentReady() { return true; }
 
   @Override protected void onCreate(Bundle state) {
