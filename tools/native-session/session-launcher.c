@@ -130,6 +130,8 @@ static int persist_tree(int code) {
     /* 已有不同回执不覆盖；临时文件只会在真实 ECHILD 之后创建。 */
     if (!record_read("tree-empty", existing, sizeof(existing)))
         return strcmp(existing, value) ? -1 : fsync(receipt_fd);
+    struct stat destination;
+    if (!fstatat(receipt_fd, "tree-empty", &destination, AT_SYMLINK_NOFOLLOW) || errno != ENOENT) return -1;
     int fd = openat(receipt_fd, "tree-empty.native", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
     if (fd < 0) return -1;
     size_t written = 0;
@@ -140,8 +142,11 @@ static int persist_tree(int code) {
         written += (size_t)n;
     }
     int failed = fsync(fd); close(fd);
-    if (failed || linkat(receipt_fd, "tree-empty.native", receipt_fd, "tree-empty", 0)
-        || unlinkat(receipt_fd, "tree-empty.native", 0) || fsync(receipt_fd)) return -1;
+    /* Android 私有存储可能拒绝硬链接。这里由本监督器独占临时名；Java 只有收到
+     * 发布后的通知才读取同一证明，不会和此 rename 并发写入 tree-empty。 */
+    if (failed || !fstatat(receipt_fd, "tree-empty", &destination, AT_SYMLINK_NOFOLLOW)
+        || errno != ENOENT || renameat(receipt_fd, "tree-empty.native", receipt_fd, "tree-empty")
+        || fsync(receipt_fd)) return -1;
     return 0;
 }
 static int connection(const char *name) {
