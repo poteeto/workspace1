@@ -19,7 +19,7 @@ public final class StartupLogActivity extends AppCompatActivity {
   private final Runnable refresh = new Runnable() {
     @Override public void run() {
       var trace = HarnessController.get(StartupLogActivity.this).startupDiagnostics().snapshot();
-      String currentLanguage = getResources().getConfiguration().getLocales().toLanguageTags();
+      String currentLanguage = com.deepseekharness.app.util.UiText.language();
       if (trace.revision != revision || !currentLanguage.equals(language)) {
         updateLog(trace.log.isEmpty() ? getString(R.string.ui_m0025) : trace.log);
         revision = trace.revision;
