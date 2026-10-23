@@ -128,6 +128,8 @@ public final class LayoutPreviewActivity extends AppCompatActivity {
                 "layout",
                 getPackageName());
     View body = getLayoutInflater().inflate(layout, null, false);
+    if (scene.equals("activity_startup_log"))
+      ((LogScrollView) body.findViewById(R.id.launch_log_scroll)).setViewportBounded(false);
     boolean fragment =
         scene.startsWith("fragment_") || scene.startsWith("plugins") || scene.startsWith("launch");
     canvas = fragment ? getLayoutInflater().inflate(R.layout.activity_main, null, false) : body;
@@ -254,7 +256,6 @@ public final class LayoutPreviewActivity extends AppCompatActivity {
       text(
           R.id.launch_status,
           scene.equals("launch_error") ? "连续启动失败，自动重启已暂停。可检查插件后再试。" : "准备好后点击启动，进入本机对话。");
-      text(R.id.launch_log, "[布局样例] 检查运行环境\n[布局样例] 等待启动\n\n本页面不启动 dsh，不执行模型请求。");
       if (scene.equals("launch_error")) {
         visible(R.id.launch_recovery, true);
         text(R.id.launch_recovery, "恢复选项");

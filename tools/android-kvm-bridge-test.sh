@@ -32,6 +32,8 @@ for _ in $(seq 1 80);do
  sleep 2
 done
 test "$ready" = 1 || { echo "ANDROID_BOOT_TIMEOUT";exit 1; }
+bounded 10 "$ADB" shell input keyevent KEYCODE_WAKEUP
+bounded 10 "$ADB" shell wm dismiss-keyguard
 "$ADB" shell getprop ro.product.cpu.abilist | tee emulator-evidence/abi.txt
 "$ADB" shell getprop ro.dalvik.vm.native.bridge | tee emulator-evidence/native-bridge.txt
 echo "BRIDGE_INFO native_arm64_abi=$(cat emulator-evidence/abi.txt)"
@@ -75,3 +77,14 @@ for cycle in 1 2 3; do
  grep -q 'ANDROID_ORDINARY_REOPEN_WITH_OLD_RECORD_PASS' "emulator-evidence/reopen-$cycle-verify.txt" || { echo "ORDINARY_APP_REOPEN_FAILED";exit 1; }
 done
 echo "ANDROID_THREE_APP_REOPEN_CYCLES_WITHOUT_REBOOT_PASS"
+
+# Current UI behavior: real Android system PiP plus the production log page.
+bounded 100 "$ADB" shell am instrument -w -r com.dsh.client/com.deepseekharness.app.ui.LaunchLogAudit >emulator-evidence/launch-preferences.txt 2>&1
+cat emulator-evidence/launch-preferences.txt
+grep -q 'ANDROID_AUTO_PIP_OPT_IN_AND_SEPARATE_LOG_PAGE_PASS' emulator-evidence/launch-preferences.txt || { echo "LAUNCH_PREFERENCES_FAILED";exit 1; }
+for language in zh en; do
+ bounded 240 "$ADB" shell am instrument -w -r -e mode style -e layout_only true -e language "$language" -e scenes launch_idle,launch_error,fragment_config,activity_startup_log com.dsh.client/com.deepseekharness.app.ui.LayoutAuditInstrumentation >"emulator-evidence/layout-$language.txt" 2>&1
+ cat "emulator-evidence/layout-$language.txt"
+ grep -q 'result=PASS' "emulator-evidence/layout-$language.txt" || { echo "NATIVE_LAYOUT_FAILED_$language";exit 1; }
+ "$ADB" exec-out run-as com.dsh.client tar -C cache -cf - layout-audit >"emulator-evidence/layout-$language.tar"
+done

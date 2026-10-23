@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="startup_log_entry_hint">View live output, history and download logs</string>
+    <string name="startup_log_hint">Live output from the current start. Scrolling up pauses automatic following.</string>
+    <string name="startup_log_history">History and diagnostics</string>
+</resources>

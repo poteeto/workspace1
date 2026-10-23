@@ -70,8 +70,10 @@ public final class Constants {
   /** 电脑模式（预览用桌面浏览器 UA）。 */
   public static final String KEY_DESKTOP_MODE = "desktop_mode";
 
-  /** 仅内置 DSH 网页支持画中画，默认关闭。 */
+  /** 历史画中画偏好，仅用于兼容旧备份；自动进入使用独立偏好。 */
   public static final String KEY_PICTURE_IN_PICTURE = "picture_in_picture";
+  // 独立于历史开关和系统许可；老用户升级也需主动选择自动小窗。
+  public static final String KEY_PICTURE_IN_PICTURE_AUTO_ENTER = "picture_in_picture_auto_enter";
 
   public static final String KEY_PICTURE_IN_PICTURE_LAYOUT = "picture_in_picture_layout";
 

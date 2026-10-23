@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="startup_log_entry_hint">查看实时输出、历史记录和下载日志</string>
+    <string name="startup_log_hint">实时显示本次启动的完整输出。上翻阅读时不会自动跳到底部。</string>
+    <string name="startup_log_history">历史记录与诊断</string>
+</resources>

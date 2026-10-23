@@ -81,6 +81,12 @@ public class ConfigFragment extends Fragment {
     pictureSettings = v.findViewById(R.id.config_picture_in_picture_settings);
     pictureStatus = v.findViewById(R.id.config_picture_in_picture_status);
     pictureSettings.setOnClickListener(x -> openPictureInPictureSettings());
+    CompoundButton automaticPicture = v.findViewById(R.id.config_picture_in_picture_auto_enter);
+    automaticPicture.setChecked(c.isPictureInPictureAutoEnter());
+    automaticPicture.setEnabled(PictureInPictureActivity.supported(ctx));
+    // 显示偏好立即保存，无需重启 Web；保留后台网页也会收到偏好变化。
+    automaticPicture.setOnCheckedChangeListener(
+        (button, checked) -> c.setPictureInPictureAutoEnter(checked));
     renderPictureInPictureStatus();
     CompoundButton noSeccomp = v.findViewById(R.id.config_no_seccomp);
     noSeccomp.setChecked(c.isProotSeccompDisabled());

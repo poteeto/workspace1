@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <instrumentation android:name="com.deepseekharness.app.core.Rc21RecoveryAudit" android:targetPackage="com.dsh.client" android:functionalTest="true" />
     <application>
+        <activity android:name=".core.PicturePreferenceFixtureActivity" android:exported="false" android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation" />
         <activity android:name=".runtime.OrdinaryRestartFixtureActivity" android:exported="true" />
         <provider android:name=".DocumentsAuditProvider" android:authorities="${applicationId}.documents.audit"
             android:exported="true" android:grantUriPermissions="true" android:permission="android.permission.MANAGE_DOCUMENTS">

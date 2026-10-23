@@ -437,10 +437,13 @@ public final class LayoutAuditInstrumentation extends Instrumentation {
     Activity active = null;
     try {
       boolean devices = "devices".equals(args.getString("mode"));
+      boolean layoutOnly = "true".equals(args.getString("layout_only"));
       shell(
           "am start -W -n com.dsh.client/com.deepseekharness.app.ui.MainActivity"
-              + (devices ? " --ez limited_entry true" : ""));
-      if (!devices) {
+              + (devices ? " --ez limited_entry true" : "")
+              + (layoutOnly ? " --ez skip_extract true" : ""));
+      // 独立布局夹具不需要 Ubuntu；只渲染实际原生 View，不声称运行环境已就绪。
+      if (!devices && !layoutOnly) {
         long readyDeadline = System.currentTimeMillis() + 120000;
         com.deepseekharness.app.core.HarnessController controller =
             com.deepseekharness.app.core.HarnessController.get(getTargetContext());
@@ -508,6 +511,7 @@ public final class LayoutAuditInstrumentation extends Instrumentation {
               "welcome_page2",
               "welcome_page3"
             };
+      if (args.containsKey("scenes")) scenes = args.getString("scenes").split(",");
       boolean recovery = "recovery".equals(args.getString("mode"));
       if (recovery) scenes = new String[] {"recovery_empty", "recovery_records"};
       boolean quick = "quick".equals(args.getString("mode")) || style || recovery;
