@@ -1,6 +1,6 @@
 # GitHub 固定签名与安装包下载
 
-当前发布流程：v181（0.2.31）验证版，分支 upgrade/dsh-0.2.1-rc.2；沿用 v180 开始使用的固定签名。
+当前发布流程：v182（0.2.32）验证版，分支 upgrade/dsh-0.2.1-rc.2；沿用 v180 开始使用的固定签名。
 
 ## 唯一发布身份
 
@@ -14,13 +14,15 @@
 
 用户要求以后更新完成后以 GitHub Releases 为交付入口，提供签名 APK、SHA256 校验文件和验证记录；回复优先提供 GitHub 下载链接。本机文件仅作临时校验副本，源码推送和 Actions artifact 都不能单独作为交付完成。
 
-[v181 验证版 Release](https://github.com/poteeto/workspace1/releases/tag/v0.2.31) 提供 `dsha-0.2.31.apk`、对应 `.sha256` 和 `verification.json`。验证版标为 prerelease，并明确未验收的真机和历史记录恢复边界。
+[v182 验证版 Release](https://github.com/poteeto/workspace1/releases/tag/v0.2.32) 提供 `dsha-0.2.32.apk`、对应 `.sha256` 和 `verification.json`。修复普通清后台后重开误进维护页；v180/v181 可同签名覆盖。验证版标为 prerelease，并明确尚未在原 realme 手机验收。
 
-工作流 .github/workflows/build-dsha-rc2-test-apk.yml 构建 Standard 非调试候选、验证运行时和双版单测，并用同次 Debug APK 检查 Android 15 模拟器中的原生进程协议及断线恢复。签名任务随后签署同次 Release 候选，检查证书、版本和内容，再上传 DSHA-v181-GITHUB-KEY-SIGNED-STANDARD-APK，作为待发布 Release 的输入。Artifact 保留 30 天，下载需登录 GitHub；未签名候选和 Debug 包不能代替签名发布包。
+工作流 .github/workflows/build-dsha-rc2-test-apk.yml 构建 Standard 非调试候选、验证运行时、双版单测和 Release Lint，并用同次 Debug APK 检查 Android 15 模拟器中的原生进程协议、断线恢复和连续三次应用重开。签名任务随后签署同次 Release 候选，检查证书、版本和内容，再上传 DSHA-v182-GITHUB-KEY-SIGNED-STANDARD-APK，作为待发布 Release 的输入。Artifact 保留 30 天，下载需登录 GitHub；未签名候选和 Debug 包不能代替签名发布包。
 
 模拟器的原生进程协议检查不等于 Release APK 的真实手机全功能验收。
 
 ## 旧版本维护卡住
+
+用户随后明确复现为普通打开、清后台、再打开，并未执行维护。v182 将普通运行历史与文件维护分开；旧未知记录继续保留供文件替换停止屏障核验，但不再阻止健康环境正常使用。旧失败恢复页面可在无真正维护时进入主界面，详见 [v182 修复与验证范围](releases/v0.2.32-build182-ordinary-reopen.md)。
 
 用户提供的 v178 / realme RMX5090 / Android 16 日志显示：普通 V2 会话残留 identity、intent、protocol，缺少 tree-empty；试运行本身已闭合。缺少回执不能当作仍存活，也不能当作全部退出。
 
