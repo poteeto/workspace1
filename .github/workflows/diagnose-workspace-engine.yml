@@ -1,0 +1,44 @@
+name: Diagnose same-APK workspace teardown
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths: ['.github/workflows/diagnose-workspace-engine.yml']
+permissions: {contents: read, actions: read}
+jobs:
+  diagnose-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v184-NATIVE-V2
+          run-id: 40082835900
+          github-token: ${{ github.token }}
+          path: packaged/main
+      - name: Trace real child settlement without changing packaged code
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tools/test-workspace-environment.mjs')
+          text=p.read_text()
+          text=text.replace("const temp=fs.mkdtempSync",'''const {spawn:realSpawn}=await import('node:child_process');
+          const children=[];
+          subprocess.internals.spawn=(program,args,options)=>{
+            const child=realSpawn(program,args,options), record={program,pid:child.pid};children.push(record);
+            child.once('error',error=>{record.error=error.code;console.log('CHILD_ERROR',JSON.stringify(record));});
+            child.once('exit',(code,signal)=>{record.exit={code,signal};console.log('CHILD_EXIT',JSON.stringify(record));});
+            return child;
+          };
+          const diagnostic=setInterval(()=>{
+            console.log('TEARDOWN_STATE',JSON.stringify({live:subprocess.live.size,children:children.map(record=>{
+              let signal0;try{process.kill(-record.pid,0);signal0='present';}catch(error){signal0=error.code;}
+              let stat;try{stat=fs.readFileSync('/proc/'+record.pid+'/stat','utf8');}catch(error){stat=error.code;}
+              return {...record,signal0,stat};
+            })}));
+          },5000);diagnostic.unref();
+          const temp=fs.mkdtempSync''')
+          p.write_text(text)
+          PY
+          python3 tools/test-bxroot-workspace.py packaged/main/app-standard-debug.apk
