@@ -1,0 +1,69 @@
+name: Verify recorded-process existence query fix
+on:
+  push:
+    branches: ['diagnostics/workspace-teardown']
+permissions: {contents: read, actions: read}
+jobs:
+  build-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-13-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-dev-arm64-cross
+      - name: Fixed source, full overlay tests and native build
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request
+          from pathlib import Path
+          lock=json.loads(Path('tools/bxroot/lock.json').read_text())
+          urllib.request.urlretrieve(lock['source']['archiveUrl'],os.environ['RUNNER_TEMP']+'/bxroot-source.tar.gz')
+          PY
+          export BXROOT_TEST_SOURCE_ARCHIVE="$RUNNER_TEMP/bxroot-source.tar.gz"
+          python3 -m unittest discover -s tools/bxroot -p test-overlay.py -v
+          python3 -B tools/bxroot/build.py --prepare-source "$RUNNER_TEMP/bxroot-src" --source-archive "$BXROOT_TEST_SOURCE_ARCHIVE"
+          (cd "$RUNNER_TEMP/bxroot-src" && BXROOT_OUTPUT="$RUNNER_TEMP/bxroot-bin" sh "$GITHUB_WORKSPACE/tools/bxroot/build-linux.sh")
+          python3 - <<'PY'
+          import hashlib,importlib.util,json,os,shutil
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('builder','tools/bxroot/build.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          folder=Path(os.environ['RUNNER_TEMP'])/'bxroot-bin'; lock=m.read_lock()
+          lock['artifacts']=[dict(name=name,sha256=m.sha((folder/name).read_bytes()),size=(folder/name).stat().st_size,elf=m.elf((folder/name).read_bytes())) for name in m.NAMES]
+          lock['patches']=[dict(path=p.relative_to(m.ROOT).as_posix(),sha256=m.sha(p.read_bytes())) for p in sorted(m.HERE.iterdir()) if p.suffix in ('.py','.sh','.c','.S')]
+          proof=Path(os.environ['RUNNER_TEMP'])/'bxroot-src/DSHA-SOURCE-PROOF.json'
+          lock['build']['sourceProofSha256']=m.sha(proof.read_bytes())
+          (folder/'lock.json').write_text(json.dumps(lock,indent=2)+'\n')
+          shutil.copy(proof,folder/'DSHA-SOURCE-PROOF.json')
+          print('CANDIDATE_NATIVE_HASHES',json.dumps(lock['artifacts']))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DSHA-v184-known-process-probe-candidate
+          path: |
+            ${{ runner.temp }}/bxroot-bin/libbxroot*.so
+            ${{ runner.temp }}/bxroot-bin/lock.json
+            ${{ runner.temp }}/bxroot-bin/DSHA-SOURCE-PROOF.json
+          if-no-files-found: error
+          retention-days: 14
+  verify-arm64:
+    needs: build-candidate
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-v184-known-process-probe-candidate
+          path: candidate-native
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v184-NATIVE-V2
+          run-id: 40082835900
+          github-token: ${{ github.token }}
+          path: packaged/main
+      - name: Actual searches, absent/live query semantics and awaited teardown
+        env:
+          DSHA_TEST_NATIVE_DIR: ${{ github.workspace }}/candidate-native
+        run: python3 tools/test-bxroot-workspace.py packaged/main/app-standard-debug.apk

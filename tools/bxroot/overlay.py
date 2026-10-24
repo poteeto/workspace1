@@ -42,6 +42,24 @@ static int lp_patch_clone3_fallback(uintptr_t lo, uintptr_t hi)
 
 '''
 
+KNOWN_PROCESS_PROBE = '''/* DSHA: signal 0 observes kernel existence without delivering a signal.
+ * Reaped ledger entries still forbid every real signal. For recorded IDs only,
+ * let the kernel distinguish ESRCH from a live/reused ID instead of reporting
+ * permanent EPERM to Node's managed-range exit observer. Unknown IDs and
+ * broadcast forms retain the original policy. */
+static int px_dsha_known_process_probe(const px_ledger *ledger, pid_t target, int sig)
+{
+    pid_t id;
+    if (sig != 0 || ledger == NULL || target == 0 || target == -1 ||
+        target < -2147483647)
+        return 0;
+    id = target > 0 ? target : -target;
+    return px_ledger_has(ledger, id, PX_ENTRY_PID) ||
+           px_ledger_has(ledger, id, PX_ENTRY_PGID);
+}
+
+'''
+
 def replace(text, before, after):
     if text.count(before) != 1:
         raise ValueError("BXROOT_OVERLAY_ANCHOR:"+before[:80])
@@ -50,6 +68,12 @@ def replace(text, before, after):
 def apply(source):
     path=source/"src/proc/proc.c"
     text=path.read_text(encoding="utf-8")
+    text=replace(text,'static int px_do_kill(pid_t pid, int sig, int (*real_fn)(pid_t, int))',
+        KNOWN_PROCESS_PROBE+'static int px_do_kill(pid_t pid, int sig, int (*real_fn)(pid_t, int))')
+    text=replace(text,'    v = px_check_kill(g_rt_ledger, NULL, &PX_SYSOPS, px_self_pid(), pid, sig);',
+'''    v = px_check_kill(g_rt_ledger, NULL, &PX_SYSOPS, px_self_pid(), pid, sig);
+    if (v == PROC_KILL_DENY && px_dsha_known_process_probe(g_rt_ledger, pid, sig))
+        v = PROC_KILL_PASS;''')
     text=replace(text,'static px_rtconfig g_rt_cfg;',
 '''static px_rtconfig g_rt_cfg;
 /* Runtime-owned loader configuration survives a guest clearenv(). Explicit

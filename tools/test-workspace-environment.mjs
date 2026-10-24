@@ -22,6 +22,16 @@ for(const extra of [{BASH_ENV:'/tmp/hook'},{ENV:'/tmp/hook'},{'BASH_FUNC_pwd%%':
 for(const text of ['rm /tmp/a','python -c "print(1)"','printf x > /tmp/existing']) assert.equal(classifyCommand(text,{env,trustedEnginePreload:trusted}).requiresApproval,true);
 const runtime=process.env.DSHA_TEST_RUNTIME||'tools/dsh-runtime';
 const require=createRequire(path.resolve(runtime,'package.json'));
+if(process.env.DSHA_TEST_BXROOT==='1') {
+  const {spawnSync}=await import('node:child_process');
+  const child=spawnSync('/usr/bin/true',[],{detached:true});
+  assert.equal(child.status,0);assert.ok(child.pid>1);
+  for(const target of [child.pid,-child.pid]) {
+    assert.throws(()=>process.kill(target,0),error=>error.code==='ESRCH','已回收的已知进程和进程组必须返回内核的不存在结果');
+    assert.throws(()=>process.kill(target,'SIGTERM'),error=>error.code==='EPERM','真实信号继续拒绝已回收编号');
+  }
+  console.log('PASS actual bxroot: reaped known IDs report ESRCH; real signals remain forbidden');
+}
 async function loadPatched(name,extra='') {
   const recipe=JSON.parse(fs.readFileSync('app/src/main/assets/'+name,'utf8'));
   let source=fs.readFileSync(path.join(runtime,'node_modules',recipe.module),'utf8');
