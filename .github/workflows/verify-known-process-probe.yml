@@ -22,7 +22,7 @@ jobs:
           urllib.request.urlretrieve(lock['source']['archiveUrl'],os.environ['RUNNER_TEMP']+'/bxroot-source.tar.gz')
           PY
           export BXROOT_TEST_SOURCE_ARCHIVE="$RUNNER_TEMP/bxroot-source.tar.gz"
-          python3 -m unittest discover -s tools/bxroot -p test-overlay.py -v
+          python3 tools/bxroot/test-overlay.py -v
           python3 -B tools/bxroot/build.py --prepare-source "$RUNNER_TEMP/bxroot-src" --source-archive "$BXROOT_TEST_SOURCE_ARCHIVE"
           (cd "$RUNNER_TEMP/bxroot-src" && BXROOT_OUTPUT="$RUNNER_TEMP/bxroot-bin" sh "$GITHUB_WORKSPACE/tools/bxroot/build-linux.sh")
           python3 - <<'PY'
