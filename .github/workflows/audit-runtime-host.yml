@@ -29,6 +29,7 @@ jobs:
       - name: Generate host-managed runtime files exactly as APK build does
         run: |
           python3 tools/pc-migration/prepare-assets.py --output app/src/main/assets
+          python3 tools/prepare-android-ripgrep.py
           # prepare-backup-assets requires dsh-runtime.bin, which is only
           # materialized in the separate complete APK build. This fast audit
           # checks the npm-facing installer contracts without claiming the
