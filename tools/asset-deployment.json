@@ -101,7 +101,13 @@
     "guard-tools-patch.json",
     "guard-bash-patch.json",
     "guard-fs-patch.json",
-    "guard-editor-patch.json"
+    "guard-editor-patch.json",
+    "workspace-model-ui-patch.json",
+    "workspace-stats-ui-patch.json",
+    "workspace-search-runtime-patch.json",
+    "workspace-web-errors-patch.json",
+    "ripgrep/rg.bin",
+    "ripgrep/copyright"
   ],
   "packagedTrees": [
     "app-integration",

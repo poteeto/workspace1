@@ -59,6 +59,9 @@ on:
       - tools/test-workspace-*.mjs
       - tools/prepare-android-ripgrep.py
       - tools/android-ripgrep.lock.json
+      - tools/asset-deployment.json
+      - tools/browser-tests/**
+      - tools/test-bxroot-workspace.py
       - app/src/main/assets/workspace-*.json
       - app/src/main/assets/destructive-policy/**
   workflow_dispatch:

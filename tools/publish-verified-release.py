@@ -54,6 +54,8 @@ assert run['path'] == '.github/workflows/build-dsha-rc2-test-apk.yml', 'WRONG_BU
 jobs = api('/actions/runs/' + str(run_id) + '/jobs?per_page=100')['jobs']
 required = {'test-apk', 'android-kvm-native-v2',
             'GitHub-native permanent key signing and signed ZIP artifact'}
+if int(record['versionCode']) >= 184:
+    required.add('arm64-workspace-tools')
 assert required <= {job['name'] for job in jobs}, 'REQUIRED_JOB_MISSING'
 assert all(job['conclusion'] == 'success' for job in jobs), 'REQUIRED_JOB_FAILED'
 artifact_name = 'DSHA-v' + str(int(record['versionCode'])) + '-GITHUB-KEY-SIGNED-STANDARD-APK'
