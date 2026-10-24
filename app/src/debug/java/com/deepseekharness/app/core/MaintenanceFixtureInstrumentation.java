@@ -1137,9 +1137,12 @@ public final class MaintenanceFixtureInstrumentation extends Instrumentation {
     }
   }
 
-  private static final class FixtureContext extends ContextWrapper {
+  private static final class FixtureContext extends ContextWrapper
+      implements com.deepseekharness.app.runtime.RuntimeHostPorts.Owner {
     final File base, files, cache;
     final String prefix = "maintenance-fixture-" + UUID.randomUUID() + "-";
+    final com.deepseekharness.app.runtime.RuntimeHostPorts ports =
+        new com.deepseekharness.app.runtime.RuntimeHostPorts();
 
     FixtureContext(Context original) throws IOException {
       super(original);
@@ -1147,6 +1150,33 @@ public final class MaintenanceFixtureInstrumentation extends Instrumentation {
       files = new File(base, "files");
       cache = new File(base, "cache");
       if (!files.mkdirs() || !cache.mkdirs()) throw new IOException("无法建立隔离 fixture");
+      ports.install(
+          new com.deepseekharness.app.runtime.RuntimeHostPorts.Provider() {
+            @Override
+            public com.deepseekharness.app.runtime.RuntimeHostPorts.Settings snapshot() {
+              return new ConfigStore(FixtureContext.this).runtimeSettingsSnapshot();
+            }
+
+            @Override
+            public void stage(String value) {
+              android.util.Log.i("DSHA_OVERLAY_FIXTURE", value);
+            }
+
+            @Override
+            public void record(String kind, String detail) {
+              android.util.Log.i("DSHA_OVERLAY_FIXTURE", kind);
+            }
+
+            @Override
+            public void failure(Throwable error) {
+              android.util.Log.e("DSHA_OVERLAY_FIXTURE", error.getClass().getSimpleName());
+            }
+          });
+    }
+
+    @Override
+    public com.deepseekharness.app.runtime.RuntimeHostPorts runtimeHostPorts() {
+      return ports;
     }
 
     @Override
