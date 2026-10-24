@@ -93,7 +93,7 @@ try {
   assert.ok((await page.getByRole('button',{name:'完成',exact:true}).boundingBox()).y<320,'大字体下底部操作保持可见');
   await large.evaluate(node=>node.remove());
   await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'关闭',exact:true}).click();
-  await page.evaluate(()=>{locked=true;render();});assert.equal(await trigger.isDisabled(),true,'保留锁定状态');await page.evaluate(()=>{locked=false;render();});
+  await page.evaluate(()=>{locked=true;render();});await page.waitForFunction(()=>document.querySelector('[data-dsha-model-trigger]')?.disabled===true);assert.equal(await trigger.isDisabled(),true,'保留锁定状态');await page.evaluate(()=>{locked=false;render();});await page.waitForFunction(()=>document.querySelector('[data-dsha-model-trigger]')?.disabled===false);
   const cache=page.locator('[data-composer-stat="cache"] button'), usage=page.locator('[data-composer-stat="usage"] button');
   assert.match(await cache.innerText(),/80%/);await cache.click();await page.locator('[data-dsha-cache-detail]').waitFor();await page.keyboard.press('Escape');
   await usage.click();await page.locator('[data-session-stats-usage]').waitFor();await page.keyboard.press('Escape');
