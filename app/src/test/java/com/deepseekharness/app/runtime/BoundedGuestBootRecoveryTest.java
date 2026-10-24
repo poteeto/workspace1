@@ -93,6 +93,103 @@ public class BoundedGuestBootRecoveryTest {
     assertFalse(new File(f.files, BoundedGuestBootRecovery.HOME).exists());
   }
 
+  private static long beforeApk(Fixture f) throws IOException {
+    long installedAt = System.currentTimeMillis();
+    Files.setLastModifiedTime(
+        new File(f.entry, "identity").toPath(),
+        java.nio.file.attribute.FileTime.fromMillis(installedAt - 60_000));
+    return installedAt;
+  }
+
+  @Test
+  public void sameBundleOverlayPreservesOldUnknownWithoutInventingClosure() throws Exception {
+    Fixture f = fixture(new JvmBackupFileSystem());
+    long installedAt = beforeApk(f);
+    byte[] identity = Files.readAllBytes(new File(f.entry, "identity").toPath());
+    assertEquals(1, BoundedGuestSessions.ordinaryOverlayHistory(f.fs, f.files, installedAt));
+    assertFalse(journal(f).exists());
+    checkpoint(f);
+    byte[] original = Files.readAllBytes(new File(journal(f), "checkpoint").toPath());
+    for (int retry = 0; retry < 3; retry++) {
+      assertEquals(1, BoundedGuestSessions.ordinaryOverlayHistory(f.fs, f.files, installedAt));
+      assertArrayEquals(identity, Files.readAllBytes(new File(f.entry, "identity").toPath()));
+      assertArrayEquals(original, Files.readAllBytes(new File(journal(f), "checkpoint").toPath()));
+      assertFalse(new File(journal(f), "closed").exists());
+      assertFalse(new File(f.entry, "tree-empty").exists());
+      assertFalse(new File(f.files, "bounded-guest-completed/" + f.id).exists());
+      assertNotNull(BoundedGuestSessions.firstPending(f.fs, f.files));
+      assertThrows(IOException.class, () -> reap(f, BOOT_A));
+    }
+  }
+
+  @Test
+  public void overlayNeverAllowsCurrentOrUncertainInvocation() throws Exception {
+    var fs = new JvmBackupFileSystem();
+    File files = temporary.newFolder();
+    var owner = BoundedGuestSessions.begin(fs, files);
+    File entry = new File(files, "bounded-guest-active/" + owner.id());
+    write(fs, new File(entry, "identity"), owner.id() + "\n3151 172477833 3151\n");
+    write(fs, new File(entry, "protocol"), "DSHA_OWNED_TREE_V2\n");
+    Fixture f = new Fixture(files, entry, owner.id(), fs);
+    long installedAt = beforeApk(f);
+    assertThrows(
+        IOException.class,
+        () -> BoundedGuestSessions.ordinaryOverlayHistory(fs, files, installedAt));
+    owner.uncertain();
+    checkpoint(f);
+    assertThrows(
+        IOException.class,
+        () -> BoundedGuestSessions.ordinaryOverlayHistory(fs, files, installedAt));
+  }
+
+  @Test
+  public void overlayRejectsNewPartialRetainedBoundAndChangedHistory() throws Exception {
+    for (String problem :
+        List.of(
+            "new",
+            "time-unknown",
+            "partial",
+            "retain",
+            "tree-empty",
+            "unknown",
+            "trial",
+            "cold",
+            "changed")) {
+      Fixture f = fixture(new JvmBackupFileSystem());
+      long installedAt = beforeApk(f);
+      switch (problem) {
+        case "new" -> installedAt = new File(f.entry, "identity").lastModified();
+        case "time-unknown" -> installedAt = 0;
+        case "partial" -> Files.delete(new File(f.entry, "identity").toPath());
+        case "retain", "tree-empty", "unknown" ->
+            write(f.fs, new File(f.entry, problem), "foreign\n");
+        case "trial" -> {
+          File trial = new File(f.files, "runtime-trials/" + UUID.randomUUID());
+          Files.createDirectories(trial.toPath());
+          write(f.fs, new File(trial, "native-session-id"), f.id);
+          write(f.fs, new File(trial, "closed"), "CLOSED\n");
+        }
+        case "cold" -> {
+          File cold = new File(f.files, "cold-install-operations/" + UUID.randomUUID());
+          Files.createDirectories(cold.toPath());
+          write(f.fs, new File(cold, "launches.json"), "{\"ids\":[\"" + f.id + "\"]}");
+        }
+        case "changed" -> {
+          checkpoint(f);
+          Files.writeString(
+              new File(f.entry, "identity").toPath(), f.id + "\n3152 172477833 3152\n");
+        }
+      }
+      long apkTime = installedAt;
+      assertThrows(
+          problem,
+          IOException.class,
+          () -> BoundedGuestSessions.ordinaryOverlayHistory(f.fs, f.files, apkTime));
+      assertTrue(f.entry.isDirectory());
+      assertFalse(new File(f.files, "bounded-guest-completed/" + f.id).exists());
+    }
+  }
+
   @Test
   public void sameBootAlwaysBlocksAndCheckpointBytesDoNotChange() throws Exception {
     Fixture f = fixture(new JvmBackupFileSystem());

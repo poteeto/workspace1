@@ -117,6 +117,41 @@ public final class RuntimeDescriptor {
         && ((List<?>) expected.value.get("dataRead")).contains(value.get("dataWrite"));
   }
 
+  /** Only an identical backend bundle may refresh these APK-owned presentation/tool overlays. */
+  public boolean sameBundleOverlay(RuntimeDescriptor expected) {
+    if (!compatible(expected)
+        || !Objects.equals(value.get("dshVersion"), expected.value.get("dshVersion"))
+        || !Objects.equals(value.get("dataRead"), expected.value.get("dataRead"))
+        || !Objects.equals(value.get("dataWrite"), expected.value.get("dataWrite"))
+        || !DataFormatEvidence.sameReaderWriter(value, expected.value)) return false;
+    Map<?, ?> old = (Map<?, ?>) value.get("inputs"),
+        next = (Map<?, ?>) expected.value.get("inputs");
+    Object bundle = old.get("dsh-runtime.bin");
+    if (!(bundle instanceof String)
+        || !((String) bundle).matches("[a-f0-9]{64}")
+        || !bundle.equals(next.get("dsh-runtime.bin"))) return false;
+    Set<String> overlays =
+        Set.of(
+            "builtin-plugins/dsh-destructive-guard/lib/destructive.js",
+            "builtin-plugins/dsh-web-mobile/lib/client.js",
+            "bxroot-native-lock.json",
+            "destructive-policy/destructive.js",
+            "destructive-policy/index.js",
+            "managed-runtime-inputs.json",
+            "ripgrep/copyright",
+            "ripgrep/rg.bin",
+            "runtime-patches.json",
+            "workspace-model-ui-patch.json",
+            "workspace-search-runtime-patch.json",
+            "workspace-stats-ui-patch.json",
+            "workspace-web-errors-patch.json");
+    Set<Object> keys = new HashSet<>(old.keySet());
+    keys.addAll(next.keySet());
+    for (Object key : keys)
+      if (!Objects.equals(old.get(key), next.get(key)) && !overlays.contains(key)) return false;
+    return true;
+  }
+
   public Map<String, Object> json() {
     return new LinkedHashMap<>(value);
   }

@@ -56,6 +56,12 @@ if [ "$status" -ne 0 ] || ! grep -q 'ANDROID_NATIVE_BIRTH_AND_ECHILD_PASS' emula
 fi
 echo "ANDROID_KERNEL_NATIVE_BRIDGE_OWNED_SESSION_PASS"
 
+# Actual signed APK assets are staged and atomically activated over an isolated old fixture.
+# The callback verifies files only; full DSH/LLM runtime health is not claimed by this fixture.
+bounded 300 "$ADB" shell am instrument -w -r -e case overlay com.dsh.client/com.deepseekharness.app.core.MaintenanceFixtureInstrumentation >emulator-evidence/overlay-upgrade.txt 2>&1
+cat emulator-evidence/overlay-upgrade.txt
+grep -q 'ANDROID_OLD_HISTORY_MANAGED_OVERLAY_ACTIVATION_PASS' emulator-evidence/overlay-upgrade.txt || { echo "OVERLAY_UPGRADE_ACTIVATION_FAILED";exit 1; }
+
 # Real app process deaths, without rebooting Android. Preserve a legacy unknown record throughout.
 for cycle in 1 2 3; do
  bounded 10 "$ADB" shell run-as com.dsh.client rm -f files/restart-fixture-ready

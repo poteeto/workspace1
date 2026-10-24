@@ -545,15 +545,21 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
           TextView banner = findViewById(R.id.environment_recovery_banner);
           if (banner == null || isFinishing()) return;
-          boolean limited = EnvironmentUiStatus.get(MainActivity.this).recovery;
+          var environment = EnvironmentUiStatus.get(MainActivity.this);
+          boolean limited = environment.recovery;
+          boolean outdated = environment.known && environment.ready && !environment.latest;
           boolean busy =
               com.deepseekharness.app.core.BackupTask.get(MainActivity.this).maintenanceBusy();
           banner.setVisibility(
-              limited || busy ? android.view.View.VISIBLE : android.view.View.GONE);
+              limited || busy || outdated ? android.view.View.VISIBLE : android.view.View.GONE);
           banner.setText(
               busy
                   ? com.deepseekharness.app.util.UiText.text("环境维护进行中 · 点击查看进度")
-                  : com.deepseekharness.app.util.UiText.text("受限模式：环境需要恢复 · 点击处理"));
+                  : limited
+                      ? com.deepseekharness.app.util.UiText.text("受限模式：环境需要恢复 · 点击处理")
+                      : com.deepseekharness.app.util.UiText.choose(
+                          "更新尚未应用，仍在使用上一版界面 · 点击处理",
+                          "Update pending; the previous interface is active · Review"));
           com.deepseekharness.app.util.BackupTaskState.Snapshot task =
               com.deepseekharness.app.core.BackupTask.get(MainActivity.this).snapshot();
           if (busy && task.busy())

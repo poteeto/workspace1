@@ -43,6 +43,43 @@ public class RuntimeDescriptorTest {
   }
 
   @Test
+  public void sameBackendOverlayCanRefreshWithoutChangingStoredDataContract() throws Exception {
+    Map<String, Object> old = value(), next = value();
+    Map<String, Object> inputs = new LinkedHashMap<>(inputs('a'));
+    inputs.put("workspace-model-ui-patch.json", "5".repeat(64));
+    inputs.put("workspace-stats-ui-patch.json", "6".repeat(64));
+    inputs.put("ripgrep/rg.bin", "7".repeat(64));
+    next.put("inputs", inputs);
+    identify(next);
+    assertTrue(new RuntimeDescriptor(old).sameBundleOverlay(new RuntimeDescriptor(next)));
+    assertFalse(new RuntimeDescriptor(old).latest(new RuntimeDescriptor(next)));
+    for (String field : List.of("dshVersion", "baseVersion", "launcherContract", "dataWrite")) {
+      Map<String, Object> changed = new LinkedHashMap<>(next);
+      changed.put(field, field.equals("dataWrite") ? "another-format" : "other");
+      if (field.equals("baseVersion")) changed.put(field, "11");
+      if (field.equals("launcherContract")) changed.put(field, "OTHER");
+      if (field.equals("dataWrite")) changed.put("dataRead", List.of("another-format"));
+      identify(changed);
+      assertFalse(
+          field, new RuntimeDescriptor(old).sameBundleOverlay(new RuntimeDescriptor(changed)));
+    }
+    for (String file :
+        List.of("dsh-runtime.bin", "persona-compat-patch.json", "unknown-script.js")) {
+      Map<String, Object> changed = new LinkedHashMap<>(next);
+      Map<String, Object> modified = new LinkedHashMap<>(inputs);
+      modified.put(file, "f".repeat(64));
+      changed.put("inputs", modified);
+      identify(changed);
+      assertFalse(
+          file, new RuntimeDescriptor(old).sameBundleOverlay(new RuntimeDescriptor(changed)));
+    }
+    Map<String, Object> changed = new LinkedHashMap<>(next);
+    changed.put("dataRead", List.of("dsh-v3", "extra"));
+    identify(changed);
+    assertFalse(new RuntimeDescriptor(old).sameBundleOverlay(new RuntimeDescriptor(changed)));
+  }
+
+  @Test
   public void uiApkVersionDoesNotInvalidateRuntime() throws Exception {
     Map<String, Object> a = value(), b = value();
     a.put("apkCode", 130L);

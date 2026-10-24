@@ -6,13 +6,18 @@ import com.deepseekharness.app.core.HarnessController;
 /** 仅用于显示的后台快照。真正执行入口仍重新校验磁盘和维护门禁。 */
 final class EnvironmentUiStatus {
   static final class Snapshot {
-    final boolean known, ready, recovery, repairs;
+    final boolean known, ready, recovery, repairs, latest;
 
     Snapshot(boolean known, boolean ready, boolean recovery, boolean repairs) {
+      this(known, ready, recovery, repairs, ready);
+    }
+
+    Snapshot(boolean known, boolean ready, boolean recovery, boolean repairs, boolean latest) {
       this.known = known;
       this.ready = ready;
       this.recovery = recovery;
       this.repairs = repairs;
+      this.latest = latest;
     }
   }
 
@@ -40,7 +45,10 @@ final class EnvironmentUiStatus {
                       !ready
                           || com.deepseekharness.app.core.MaintenanceCoordinator.pending(
                               controller),
-                      com.deepseekharness.app.core.StartupRepairs.pending(app));
+                      com.deepseekharness.app.core.StartupRepairs.pending(app),
+                      ready
+                          && com.deepseekharness.app.core.EnvironmentAccess.runtimeLatest(
+                              controller));
             } finally {
               synchronized (EnvironmentUiStatus.class) {
                 running = false;

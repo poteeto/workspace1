@@ -30,8 +30,10 @@ final class BoundedGuestBootRecovery {
     Checkpoint checkpoint = checkpoint(fs, journal, id);
     if (!Arrays.equals(checkpoint.snapshot, capture(fs, entry, id, true)))
       throw new IOException("BOUNDED_GUEST_BOOT_ORIGINAL_CHANGED");
-    String birth = new String(fs.small(fs.child(entry, "identity"), 128), StandardCharsets.US_ASCII);
-    String tree = new String(fs.small(fs.child(entry, "tree-empty"), 192), StandardCharsets.US_ASCII);
+    String birth =
+        new String(fs.small(fs.child(entry, "identity"), 128), StandardCharsets.US_ASCII);
+    String tree =
+        new String(fs.small(fs.child(entry, "tree-empty"), 192), StandardCharsets.US_ASCII);
     if (!BoundedGuestSessions.validTree(birth, tree))
       throw new IOException("OWNED_TREE_RECEIPT_MISSING");
     File archived = fs.child(files, "bounded-guest-boot-superseded");
@@ -56,6 +58,28 @@ final class BoundedGuestBootRecovery {
   }
 
   private record Checkpoint(String id, String boot, String digest, byte[] snapshot) {}
+
+  /** Read the preserved ordinary record without publishing a boot/exit/completion receipt. */
+  static File overlayOriginal(BackupFileSystem fs, File files, String id) throws IOException {
+    File journal = journal(fs, files, id);
+    validateJournal(fs, journal);
+    if (!fs.stat(fs.child(journal, "closed")).type.equals("MISSING"))
+      throw new IOException("OVERLAY_HISTORY_ALREADY_CLOSED");
+    Checkpoint checkpoint = checkpoint(fs, journal, id);
+    File active = active(fs, files, id), original = fs.child(journal, "original");
+    boolean hasActive = !fs.stat(active).type.equals("MISSING");
+    boolean hasOriginal = !fs.stat(original).type.equals("MISSING");
+    if (hasActive == hasOriginal) throw new IOException("BOUNDED_GUEST_BOOT_LOCATION_CONFLICT");
+    File source = hasActive ? active : original;
+    if (!Arrays.equals(checkpoint.snapshot, capture(fs, source, id)))
+      throw new IOException("BOUNDED_GUEST_BOOT_ORIGINAL_CHANGED");
+    return source;
+  }
+
+  static void requireOrdinaryOverlayRecord(BackupFileSystem fs, File entry, String id)
+      throws IOException {
+    capture(fs, entry, id);
+  }
 
   private BoundedGuestBootRecovery() {}
 
@@ -255,8 +279,7 @@ final class BoundedGuestBootRecovery {
     Set<String> expected = new HashSet<>(MEMBERS);
     if (nativeClosed) expected.add("tree-empty");
     BackupFileSystem.Node directory = fs.stat(entry);
-    if (!directory.type.equals("DIRECTORY")
-        || !new HashSet<>(fs.list(entry)).equals(expected))
+    if (!directory.type.equals("DIRECTORY") || !new HashSet<>(fs.list(entry)).equals(expected))
       throw new IOException("BOUNDED_GUEST_BOOT_INELIGIBLE_MEMBERS");
     Map<String, byte[]> values = new TreeMap<>();
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -292,8 +315,7 @@ final class BoundedGuestBootRecovery {
     } catch (NumberFormatException invalid) {
       throw new IOException("BOUNDED_GUEST_BOOT_RECORD_INVALID", invalid);
     }
-    if (!directory.same(fs.stat(entry))
-        || !new HashSet<>(fs.list(entry)).equals(expected))
+    if (!directory.same(fs.stat(entry)) || !new HashSet<>(fs.list(entry)).equals(expected))
       throw new IOException("BOUNDED_GUEST_BOOT_RECORD_CHANGED");
     return bytes.toByteArray();
   }

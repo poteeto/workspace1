@@ -18,6 +18,20 @@ public final class EnvironmentAccess {
     }
   }
 
+  /** Refresh identical backend bytes without treating ordinary unknown history as a data repair. */
+  public static boolean sameBundleOverlay(HarnessController controller) {
+    try {
+      var installed = controller.proot().installedRuntimeDescriptor();
+      return controller.proot().canUpdateManagedRuntime()
+          && installed != null
+          && com.deepseekharness.app.backup.RuntimeDescriptor.healthy(
+              controller.proot().runtimeHealth(), installed.id())
+          && installed.sameBundleOverlay(controller.proot().expectedRuntimeDescriptor());
+    } catch (java.io.IOException error) {
+      return false;
+    }
+  }
+
   /** 同一 APK 安装只自动尝试一次；覆盖安装修复包后可重新尝试同一受管候选。 */
   public static String candidateAttemptKey(HarnessController controller)
       throws java.io.IOException {
@@ -44,7 +58,8 @@ public final class EnvironmentAccess {
           true,
           com.deepseekharness.app.core.MaintenanceCoordinator.isEnvironmentTaskBusy(),
           com.deepseekharness.app.core.MaintenanceCoordinator.pending(controller)
-              || replacementUnconfirmed(controller.context().getFilesDir()),
+              || !sameBundleOverlay(controller)
+                  && replacementUnconfirmed(controller.context().getFilesDir()),
           candidate,
           controller
               .context()

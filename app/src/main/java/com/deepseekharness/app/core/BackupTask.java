@@ -121,7 +121,8 @@ public final class BackupTask {
   }
 
   /** 与布尔门禁使用同一缓存快照，显示具体阻塞域而不是猜测环境已损坏。 */
-  public com.deepseekharness.app.backup.HostMaintenancePending.Check pendingMaintenanceDetailForUi() {
+  public com.deepseekharness.app.backup.HostMaintenancePending.Check
+      pendingMaintenanceDetailForUi() {
     pendingMaintenanceForUi();
     return pendingCacheCheck;
   }
@@ -225,9 +226,11 @@ public final class BackupTask {
                                 stopWeb
                                     ? com.deepseekharness.app.util.UiText.text("正在停止 Web，等待运行队列完成…")
                                     : com.deepseekharness.app.util.UiText.text("正在准备数据快照…"));
-                            return stopWeb
-                                ? MaintenanceCoordinator.exclusive(controller, () -> work.run(id))
-                                : work.run(id);
+                            if (!stopWeb) return work.run(id);
+                            return kind.equals(com.deepseekharness.app.util.BackupTaskKinds.UPDATE)
+                                ? MaintenanceCoordinator.updateManagedRuntime(
+                                    controller, () -> work.run(id))
+                                : MaintenanceCoordinator.exclusive(controller, () -> work.run(id));
                           });
                   state.update(id, Status.SUCCEEDED, result);
                 } catch (Cancelled e) {

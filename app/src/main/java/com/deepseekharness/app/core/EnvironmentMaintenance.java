@@ -212,6 +212,8 @@ public final class EnvironmentMaintenance {
     try {
       java.util.List<String> paths =
           controller.proot().stageManagedRuntime(transaction.stage(), progress);
+      // Staging can take time. Recheck preserved history immediately before any live tree moves.
+      MaintenanceCoordinator.confirmUpdateHistory(controller);
       transaction.prepare(
           paths, controller.proot().expectedRuntimeDescriptor(), previous, previousHealth, control);
       began = true;
@@ -246,6 +248,11 @@ public final class EnvironmentMaintenance {
     }
     String cleanup = "";
     try {
+      // Preserve every older managed copy while ordinary UNKNOWN history is retained.
+      if (com.deepseekharness.app.runtime.BoundedGuestSessions.firstPending(files) != null)
+        return com.deepseekharness.app.util.UiText.choose(
+            "dsh 与内置插件更新完成；旧运行记录及原运行时副本保留，个人目录与会话保持原位。",
+            "dsh and built-in plugins updated. Previous run records and runtime copies were retained; personal files and conversations stayed in place.");
       com.deepseekharness.app.backup.ManagedRuntimeTransaction.trimOlder(
           fs,
           files,

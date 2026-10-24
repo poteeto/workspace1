@@ -48,7 +48,8 @@ public final class BoundedGuestSessions {
     Integer savedTreeExit() throws IOException {
       File proof = fs.child(entry, "tree-empty");
       if (fs.stat(proof).type.equals("MISSING")) return null;
-      String birth = new String(fs.small(fs.child(entry, "identity"), 128), StandardCharsets.US_ASCII);
+      String birth =
+          new String(fs.small(fs.child(entry, "identity"), 128), StandardCharsets.US_ASCII);
       String tree = new String(fs.small(proof, 192), StandardCharsets.US_ASCII);
       if (!validTree(birth, tree)) throw new IOException("OWNED_TREE_RECEIPT_MISSING");
       return Integer.parseInt(tree.substring(birth.length() + 7).trim());
@@ -151,6 +152,58 @@ public final class BoundedGuestSessions {
   /** Read-only process barrier for file replacement; this is not an installation health check. */
   public static String firstPending(File filesDir) throws IOException {
     return firstPending(new AndroidBackupFileSystem(), filesDir.getCanonicalFile());
+  }
+
+  /**
+   * Same-backend APK overlays may retain old ordinary UNKNOWN history. This is not
+   * process quiescence, and never enables data restore/rebuild or a backend change.
+   * Current invocations, retained trials, install bindings and damaged records still block.
+   */
+  public static int confirmSameBundleOverlay(File filesDir, long apkUpdatedAt) throws IOException {
+    var fs = new AndroidBackupFileSystem();
+    File files = filesDir.getCanonicalFile();
+    try {
+      reapExited(fs, files);
+      return 0;
+    } catch (java.io.InterruptedIOException cancelled) {
+      throw cancelled;
+    } catch (IOException strictBarrier) {
+      try {
+        return ordinaryOverlayHistory(fs, files, apkUpdatedAt);
+      } catch (IOException blocked) {
+        blocked.addSuppressed(strictBarrier);
+        throw blocked;
+      }
+    }
+  }
+
+  static int ordinaryOverlayHistory(BackupFileSystem fs, File files, long apkUpdatedAt)
+      throws IOException {
+    if (apkUpdatedAt <= 0) throw new IOException("OVERLAY_APK_INSTALL_TIME_UNAVAILABLE");
+    java.util.Set<String> journals =
+        new java.util.HashSet<>(BoundedGuestBootRecovery.pending(fs, files));
+    List<Inspection> history = inspect(fs, files);
+    int retained = 0;
+    for (Inspection record : history) {
+      if (Thread.currentThread().isInterrupted())
+        throw new java.io.InterruptedIOException("CANCELLED");
+      if (!record.state.equals("PENDING") || active.containsKey(record.id))
+        throw new IOException("OVERLAY_CURRENT_OR_INVALID_RUN:" + record.id);
+      requireNoBootRecoveryBinding(fs, files, record.id);
+      File source =
+          journals.contains(record.id)
+              ? BoundedGuestBootRecovery.overlayOriginal(fs, files, record.id)
+              : validateEntry(fs, fs.child(files, HOME), record.id);
+      BoundedGuestBootRecovery.requireOrdinaryOverlayRecord(fs, source, record.id);
+      // Use File's documented milliseconds, not the filesystem adapter's platform-specific mtime
+      // unit.
+      long bornAt = fs.child(source, "identity").lastModified();
+      if (bornAt <= 0 || bornAt / 1000 >= apkUpdatedAt / 1000)
+        throw new IOException("OVERLAY_RUN_NOT_BEFORE_APK:" + record.id);
+      retained++;
+    }
+    if (retained == 0) throw new IOException("OVERLAY_HISTORY_NOT_ORDINARY");
+    return retained;
   }
 
   /**
@@ -561,9 +614,9 @@ public final class BoundedGuestSessions {
     File identity = fs.child(entry, "identity"), intent = fs.child(entry, "intent");
     if (!fs.stat(identity).type.equals("MISSING")) fs.delete(identity);
     for (String name : fs.list(entry))
-      if (name.startsWith("intent.tmp-") || name.startsWith("identity.tmp-")
-          || name.equals("tree-empty.native"))
-        fs.delete(fs.child(entry, name));
+      if (name.startsWith("intent.tmp-")
+          || name.startsWith("identity.tmp-")
+          || name.equals("tree-empty.native")) fs.delete(fs.child(entry, name));
     if (!fs.stat(intent).type.equals("MISSING")) fs.delete(intent);
     fs.syncDirectory(entry);
     fs.delete(entry);
