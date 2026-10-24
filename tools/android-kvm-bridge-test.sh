@@ -14,7 +14,7 @@ except subprocess.TimeoutExpired: print("ANDROID_ADB_TIMEOUT",sys.argv[2:],flush
 "$EMULATOR" -avd dsha-kvm -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 3072 -no-snapshot -wipe-data -accel on >emulator-evidence/emulator.log 2>&1 &
 emu=$!
 cleanup(){
- bounded 12 "$ADB" logcat -d -v threadtime -s 'AndroidRuntime:E' 'ActivityTaskManager:I' 'ActivityManager:I' 'DSHA-PiP:V' >emulator-evidence/logcat.txt 2>&1 || true
+ bounded 12 "$ADB" logcat -d -v threadtime -s 'AndroidRuntime:E' 'ActivityTaskManager:I' 'ActivityManager:I' 'DSHA-PiP:V' 'DSHA_MAINTENANCE_FIXTURE:V' 'DSHA_OVERLAY_FIXTURE:V' >emulator-evidence/logcat.txt 2>&1 || true
  bounded 12 "$ADB" emu kill >/dev/null 2>&1 || true
  kill "$emu" >/dev/null 2>&1 || true
 }

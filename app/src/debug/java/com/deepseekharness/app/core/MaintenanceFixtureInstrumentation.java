@@ -376,6 +376,7 @@ public final class MaintenanceFixtureInstrumentation extends Instrumentation {
           "stream", "PASS " + assertions + " assertions；fixture（默认完成后清理）：" + fixture.base);
       finish(Activity.RESULT_OK, result);
     } catch (Throwable error) {
+      android.util.Log.e("DSHA_MAINTENANCE_FIXTURE", "Isolated fixture failed", error);
       result.putString("status", "FAIL");
       result.putInt("assertions", assertions);
       result.putString(
@@ -1146,7 +1147,9 @@ public final class MaintenanceFixtureInstrumentation extends Instrumentation {
 
     FixtureContext(Context original) throws IOException {
       super(original);
-      base = new File(original.getCacheDir(), prefix);
+      // Android's /data/user/0 alias is itself a symlink. The production NOFOLLOW adapter
+      // expects the canonical private anchor, as do the production maintenance entry points.
+      base = new File(original.getCacheDir().getCanonicalFile(), prefix).getCanonicalFile();
       files = new File(base, "files");
       cache = new File(base, "cache");
       if (!files.mkdirs() || !cache.mkdirs()) throw new IOException("无法建立隔离 fixture");
@@ -1192,6 +1195,13 @@ public final class MaintenanceFixtureInstrumentation extends Instrumentation {
     @Override
     public File getCacheDir() {
       return cache;
+    }
+
+    @Override
+    public android.content.pm.ApplicationInfo getApplicationInfo() {
+      var info = new android.content.pm.ApplicationInfo(super.getApplicationInfo());
+      info.dataDir = base.getAbsolutePath();
+      return info;
     }
 
     @Override
