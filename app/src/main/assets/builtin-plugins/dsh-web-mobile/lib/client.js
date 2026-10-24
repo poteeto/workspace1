@@ -6848,6 +6848,7 @@ function createStatsLineTask() {
         return [...dock.children].find((child) => isRingCandidate(child, stats)) === foldedRing;
     };
     const mark = () => {
+        if (document.querySelector('[data-composer-stat]') !== null) return; // DSHA_WORKSPACE_STATS_NATIVE_V1
         // Keyboard open/close and viewport rotations relayout the composer without
         // any DOM mutation, so the overlays need their own re-layout channel.
         if (viewportHandler === null) {

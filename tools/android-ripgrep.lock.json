@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "version": "14.1.0-1",
+  "source": "https://ports.ubuntu.com/ubuntu-ports/",
+  "inRelease": "dists/noble/InRelease",
+  "inReleaseSha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+  "index": "dists/noble/universe/binary-arm64/Packages.xz",
+  "indexSha256": "6df230cf5cfebcbd59e4e2713b8eed07dc0aaed66fb471ebf046cb70ccb07275",
+  "filename": "pool/universe/r/rust-ripgrep/ripgrep_14.1.0-1_arm64.deb",
+  "size": 1455230,
+  "sha256": "71fe8a5667bc87d2bca175a3426c6ec518e0679cc821d23ae7056de7096f04de",
+  "binarySha256": "51407f46525cf368f99011044fae7aa00912dce6467731f97bb7cf423e2bd702",
+  "copyrightSha256": "b8badd31db4a52167bf97284ce2ad9ae6fe3effe1df087db0c8687a02c898f9c"
+}

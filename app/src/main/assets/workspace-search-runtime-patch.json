@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "dshVersion": "0.2.1-rc.2",
+  "module": "@deepseek-ai/dsh-tool-fs-search/lib/index.js",
+  "sourceSha256": "8d64d2e8a5310b442ae66bc0daf7d6957ec095dbe43cabd9eb208f7370e381ed",
+  "patches": [
+    {
+      "before": "let rgPathPromise;",
+      "after": "// DSHA_TOOL_FAILURE_CODES_V1：只显示受限错误码，不复制 URL、请求头或环境值。\nfunction dshaFailureCodes(error) {\n    const seen=new Set(), codes=new Set();\n    function visit(value, depth) {\n        if (!value || typeof value!==\"object\" || seen.has(value) || depth>4 || seen.size>=16) return;\n        seen.add(value);\n        if (typeof value.code===\"string\" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value.code)) codes.add(value.code);\n        visit(value.cause, depth+1);\n        if (Array.isArray(value.errors)) for (const child of value.errors.slice(0,8)) visit(child,depth+1);\n    }\n    visit(error,0);\n    return codes.size ? ` [${[...codes].join(\", \")}]` : \"\";\n}\nlet rgPathPromise;"
+    },
+    {
+      "before": "\t\tconst executable = parse(process.execPath);",
+      "after": "        // npm 的 ARM64 rg 是静态 ELF，bxroot 的线程限制拒绝静态子进程。\n        // Android 固定使用签名 APK 中的 Ubuntu glibc 版本；仍通过原 subprocess 执行。\n        if (process.platform === \"linux\" && process.arch === \"arm64\" && process.env.DSHA_ANDROID_RUNTIME === \"1\") {\n            const androidRg=\"/usr/local/bin/rg\";\n            if (!existsSync(androidRg)) throw Object.assign(new Error(\"Android glibc ripgrep is missing; runtime preparation is incomplete\"), {code:\"DSHA_RG_MISSING\"});\n            return androidRg;\n        }\n\t\tconst executable = parse(process.execPath);"
+    },
+    {
+      "before": "(ripgrep launch failed)`",
+      "after": "(ripgrep launch failed)${dshaFailureCodes(error)}`"
+    },
+    {
+      "before": "(ripgrep provider failure)`",
+      "after": "(ripgrep provider failure)${dshaFailureCodes(error)}`"
+    }
+  ]
+}

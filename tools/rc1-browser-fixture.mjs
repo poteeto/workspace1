@@ -39,7 +39,7 @@ export async function browserFixture(runtime=process.env.DSHA_TEST_RUNTIME||JSON
   catch { playwright=require(path.join(process.env.USERPROFILE||'', '.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright')); }
   const engine=process.env.DSHA_BROWSER || 'chromium';
   if (!['chromium','firefox'].includes(engine)) throw Error('Unsupported fixture browser: '+engine);
-  const browser=await playwright[engine].launch({headless:true,...engine==='firefox'?{firefoxUserPrefs:{'ui.primaryPointerCapabilities':1,'ui.allPointerCapabilities':1}}:{}});
+  const browser=await playwright[engine].launch({headless:true,...engine==='firefox'?{firefoxUserPrefs:{'ui.primaryPointerCapabilities':1,'ui.allPointerCapabilities':1}}:process.env.DSHA_CHROME?{executablePath:process.env.DSHA_CHROME}:{}});
   const page=await browser.newPage({viewport:{width:360,height:800},deviceScaleFactor:1,hasTouch:true});
   const errors=[];page.on('pageerror',e=>errors.push(String(e)));
   await page.goto(`http://127.0.0.1:${server.address().port}/`);

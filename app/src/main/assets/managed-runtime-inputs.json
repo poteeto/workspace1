@@ -1626,6 +1626,16 @@
       "asset": "destructive-policy/workdir.js",
       "target": "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/dsha-destructive-policy/workdir.js",
       "executable": false
+    },
+    {
+      "asset": "ripgrep/rg.bin",
+      "target": "usr/local/bin/rg",
+      "executable": true
+    },
+    {
+      "asset": "ripgrep/copyright",
+      "target": "usr/local/share/doc/dsha-ripgrep/copyright",
+      "executable": false
     }
   ],
   "assetFiles": [
@@ -1671,7 +1681,11 @@
     "licenses/bxroot-glibc-COPYING.LIB.txt",
     "licenses/bxroot-glibc-copyright.txt",
     "licenses/bxroot-gcc-copyright.txt",
-    "licenses/GCC-RUNTIME-EXCEPTION-3.1.txt"
+    "licenses/GCC-RUNTIME-EXCEPTION-3.1.txt",
+    "workspace-model-ui-patch.json",
+    "workspace-stats-ui-patch.json",
+    "workspace-search-runtime-patch.json",
+    "workspace-web-errors-patch.json"
   ],
   "assetTrees": [
     "web-integration",
@@ -1905,6 +1919,13 @@
     "tools/vendor-plugin-capabilities.cjs",
     "tools/termux-jni/dsha-pty.c",
     "tools/termux-jni/dsha-process.c",
-    "tools/termux-jni/build.ps1"
+    "tools/termux-jni/build.ps1",
+    "tools/prepare-android-ripgrep.py",
+    "tools/android-ripgrep.lock.json",
+    "tools/prepare-workspace-ui.py",
+    "tools/workspace-ui/model-controls.js",
+    "tools/workspace-ui/usage-pills.js",
+    "tools/workspace-ui/workspace.css",
+    "tools/prepare-workspace-environment.py"
   ]
 }

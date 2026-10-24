@@ -4,9 +4,9 @@
 
 ## DSH 与 npm 依赖
 
-- 当前 `@deepseek-ai/dsh` 为 **0.2.0-rc.2**。完整版本、来源与 integrity 见 `tools/dsh-runtime/package-lock.json`；各包原许可文件保留在运行归档中。
+- 当前 `@deepseek-ai/dsh` 为 **0.2.1-rc.2**。完整版本、来源与 integrity 见 `tools/dsh-runtime/package-lock.json`；各包原许可文件保留在运行归档中。
 - DSHA 自有运行包 `dsha-runtime-fs` **1.0.0**、`dsha-session-compat` **1.0.0**、`dsha-client-combo-cache` **1.0.0**、`dsha-destructive-policy` **1.0.0** 采用本仓库 MIT 许可；精确来源为对应 `app/src/main/assets` 源码和 `LICENSE`（Copyright (c) 2026 qiannianhuanxiang），完整原文随 `assets/licenses/DSHA-MIT.txt` 提供并与仓库原件逐字节核对。自有包仅按固定名称、版本和完整 package.json 注册，不扩展到其它同前缀包或 MIT 声明。
-- Office 入口 `@deepseek-ai/libreoffice-kit` **0.1.2**、WASM **0.1.1**：保留上游 NOTICE、licenses、sources 与预构建说明。DSHA 的字体路径适配见 `assets/office-fonts-patch.json`。
+- Office 入口 `@deepseek-ai/libreoffice-kit` **0.1.5**、WASM **0.1.5**：保留上游 NOTICE、licenses、sources 与预构建说明。DSHA 的字体路径适配见 `assets/office-fonts-patch.json`。
 - pnpm **10.34.5**（MIT）和 certifi **2026.7.22**（MPL-2.0）：版本和原包摘要由 `tools/runtime-tools.lock.json` 固定。CA 未关闭 TLS 核验。
 - 许可目录和实际依赖需结合归档成员检查；锁文件内其他平台可选依赖不等于已进入 arm64 APK。
 - core-js **3.50.0**（MIT），原包来源 `https://registry.npmjs.org/core-js/-/core-js-3.50.0.tgz`，全文为 `assets/web-integration/core-js.LICENSE`。
@@ -22,7 +22,7 @@
 - 上游 client 摘要 `4e4be68a033be4d0b24d45232665af9704325b13568dd3c5bbf68a615ab2fe33`；本地差异由 `tools/apply-mobile-client-patches.mjs` 与 `tools/mobile-server/` 管理。不是未修改的上游产物。
 - 许可全文：`app/src/main/assets/builtin-plugins/dsh-web-mobile/LICENSE`。当前产物摘要：
 
-- `client.js`：`dd3d754631bc66093645c0428cacef37049b8797c23ed2083e94a46b1b038383`
+- `client.js`：`a0fb28c94f61e1d30eb7ef118bb6ead72d6b390f9cdfc05924c245c6c764d221`
 - `index.js`：`607ea57134e8772fa5e9bb1778c556703ba21191f8ef198ec278b764f945797a`
 - `compress.js`：`8a65d79c01aa8f600def5a330b41b4168bb18282b18ee0a84d9736f7b5f644f8`
 - `delete-session.js`：`cb119ff9703716fe1111ee5a2f211d14886ab1d2310601c5787efc8d91219d51`
@@ -52,6 +52,7 @@
 - SnakeYAML 2.4（Apache-2.0）：固定官方 Maven Central JAR/POM 与 `snakeyaml-2.4` 源码标签，使用宿主 data-only SafeConstructor 投影凭据中的本机连接字段。许可原文为 `assets/licenses/snakeyaml-LICENSE.txt`，Java 8 类文件及 Android FIELD 路径见 `docs/audits/build156/snakeyaml-official-artifacts.json`；不由静态兼容声明推导旧设备验收完成。
 - Low 的 GeckoView 143.0.20251003115653 为 MPL-2.0，来自 Mozilla Maven；保留相应声明。AAR 原件与其中 12 个 arm64 原生成员的精确摘要见 `tools/native-dependencies.lock.json`，实际 APK 逐成员核对，Standard 不含这些成员。兼容版最低 API 23，不表示所有旧设备已经验收。
 - Ubuntu 软件包各自遵循其许可；包内 `/usr/share/doc` 与 common-licenses 保留版权信息。根环境仍为 Ubuntu 24.04 arm64，DSHA 基础环境身份 10。
+- Android 搜索工具使用 Ubuntu glibc ripgrep **14.1.0-1**，固定原包 `https://ports.ubuntu.com/ubuntu-ports/pool/universe/r/rust-ripgrep/ripgrep_14.1.0-1_arm64.deb`，SHA-256 `71fe8a5667bc87d2bca175a3426c6ec518e0679cc821d23ae7056de7096f04de`。原始 copyright（含 MIT/Unlicense、打包与依赖许可声明）为 `assets/ripgrep/copyright`，运行时保存到 `/usr/local/share/doc/dsha-ripgrep/copyright`；来源与签名索引由 `tools/android-ripgrep.lock.json` 和制备脚本绑定，不修改 npm 内原工具。
 - node-semver 7.8.1 为 ISC，完整许可随 `assets/plugin-semver.cjs` 提供。
 
 当前 Gradle 直接运行依赖坐标（不包含测试依赖；完整传递依赖许可审查仍需实际解析结果）：
@@ -77,9 +78,6 @@
 | `app/src/low/jniLibs/arm64-v8a/libproot_legacy.so` | GPL-2.0 | tools/build-low-proot.py, proot v5.1.107.92 source archive and local changes |
 | `app/src/low/jniLibs/arm64-v8a/libprootloader_legacy.so` | GPL-2.0 | tools/build-low-proot.py, proot v5.1.107.92 source archive |
 | `app/src/main/jniLibs/arm64-v8a/libandroidshmem.so` | unknown origin/license for this original binary | Retained original; no current exact-source reproduction receipt |
-| `app/src/main/jniLibs/arm64-v8a/libbxroot-runtime.so` | MIT | tools/bxroot/lock.json pins upstream commit, local patches and glibc shared runtime build |
-| `app/src/main/jniLibs/arm64-v8a/libbxroot-ulx.so` | MIT bxroot source; static toolchain runtime has separate terms | tools/bxroot/lock.json pins upstream commit, local patches and static relink inputs |
-| `app/src/main/jniLibs/arm64-v8a/libbxroot.so` | MIT bxroot source; static toolchain runtime has separate terms | tools/bxroot/lock.json pins upstream commit, local patches and static relink inputs |
 | `app/src/main/jniLibs/arm64-v8a/libdsha-session.so` | MIT | tools/native-session/session-launcher.c; locked API 23 build |
 | `app/src/main/jniLibs/arm64-v8a/libproot.so` | GPL-2.0 | Termux proot; original Standard binary exact revision remains unverified |
 | `app/src/main/jniLibs/arm64-v8a/libprootloader.so` | GPL-2.0 | Termux proot; original Standard binary exact revision remains unverified |
@@ -93,12 +91,12 @@
 
 | 锁内路径 | 版本 | 上游声明 | 原包来源 |
 |---|---|---|---|
-| `node_modules/@deepseek-ai/libreoffice-kit` | 0.1.2 | MPL-2.0 | https://registry.npmjs.org/@deepseek-ai/libreoffice-kit/-/libreoffice-kit-0.1.2.tgz |
-| `node_modules/@deepseek-ai/libreoffice-kit-darwin-arm64` | 0.1.1 | MPL-2.0 | https://registry.npmjs.org/@deepseek-ai/libreoffice-kit-darwin-arm64/-/libreoffice-kit-darwin-arm64-0.1.1.tgz |
-| `node_modules/@deepseek-ai/libreoffice-kit-darwin-x64` | 0.1.1 | MPL-2.0 | https://registry.npmjs.org/@deepseek-ai/libreoffice-kit-darwin-x64/-/libreoffice-kit-darwin-x64-0.1.1.tgz |
-| `node_modules/@deepseek-ai/libreoffice-kit-wasm` | 0.1.1 | MPL-2.0 | https://registry.npmjs.org/@deepseek-ai/libreoffice-kit-wasm/-/libreoffice-kit-wasm-0.1.1.tgz |
-| `node_modules/@deepseek-ai/libreoffice-kit-win32-arm64` | 0.1.2 | MPL-2.0 | https://registry.npmjs.org/@deepseek-ai/libreoffice-kit-win32-arm64/-/libreoffice-kit-win32-arm64-0.1.2.tgz |
-| `node_modules/@deepseek-ai/libreoffice-kit-win32-x64` | 0.1.2 | MPL-2.0 | https://registry.npmjs.org/@deepseek-ai/libreoffice-kit-win32-x64/-/libreoffice-kit-win32-x64-0.1.2.tgz |
+| `node_modules/@deepseek-ai/libreoffice-kit` | 0.1.5 | MPL-2.0 | https://registry.npmjs.org/@deepseek-ai/libreoffice-kit/-/libreoffice-kit-0.1.5.tgz |
+| `node_modules/@deepseek-ai/libreoffice-kit-darwin-arm64` | 0.1.5 | MPL-2.0 | https://registry.npmjs.org/@deepseek-ai/libreoffice-kit-darwin-arm64/-/libreoffice-kit-darwin-arm64-0.1.5.tgz |
+| `node_modules/@deepseek-ai/libreoffice-kit-darwin-x64` | 0.1.5 | MPL-2.0 | https://registry.npmjs.org/@deepseek-ai/libreoffice-kit-darwin-x64/-/libreoffice-kit-darwin-x64-0.1.5.tgz |
+| `node_modules/@deepseek-ai/libreoffice-kit-wasm` | 0.1.5 | MPL-2.0 | https://registry.npmjs.org/@deepseek-ai/libreoffice-kit-wasm/-/libreoffice-kit-wasm-0.1.5.tgz |
+| `node_modules/@deepseek-ai/libreoffice-kit-win32-arm64` | 0.1.5 | MPL-2.0 | https://registry.npmjs.org/@deepseek-ai/libreoffice-kit-win32-arm64/-/libreoffice-kit-win32-arm64-0.1.5.tgz |
+| `node_modules/@deepseek-ai/libreoffice-kit-win32-x64` | 0.1.5 | MPL-2.0 | https://registry.npmjs.org/@deepseek-ai/libreoffice-kit-win32-x64/-/libreoffice-kit-win32-x64-0.1.5.tgz |
 | `node_modules/@img/sharp-libvips-darwin-arm64` | 1.3.4 | LGPL-3.0-or-later | https://registry.npmjs.org/@img/sharp-libvips-darwin-arm64/-/sharp-libvips-darwin-arm64-1.3.4.tgz |
 | `node_modules/@img/sharp-libvips-darwin-x64` | 1.3.4 | LGPL-3.0-or-later | https://registry.npmjs.org/@img/sharp-libvips-darwin-x64/-/sharp-libvips-darwin-x64-1.3.4.tgz |
 | `node_modules/@img/sharp-libvips-linux-arm` | 1.3.4 | LGPL-3.0-or-later | https://registry.npmjs.org/@img/sharp-libvips-linux-arm/-/sharp-libvips-linux-arm-1.3.4.tgz |

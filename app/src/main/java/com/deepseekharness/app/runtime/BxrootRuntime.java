@@ -32,6 +32,8 @@ public final class BxrootRuntime implements ContainerRuntime {
     return true;
   }
 
+  private String runtimeSha256;
+
   public String unavailableReason() {
     return available() ? "" : "BXROOT_NATIVE_CLOSURE_MISSING";
   }
@@ -66,6 +68,7 @@ public final class BxrootRuntime implements ContainerRuntime {
           actual.append(String.format(java.util.Locale.ROOT, "%02x", value & 255));
         if (!expected.equals(actual.toString()))
           throw new IOException("BXROOT_NATIVE_HASH_MISMATCH:" + name);
+        if (name.equals("libbxroot-runtime.so")) runtimeSha256 = expected;
       }
     } catch (org.json.JSONException | java.security.NoSuchAlgorithmException invalid) {
       throw new IOException("BXROOT_NATIVE_LOCK_INVALID", invalid);
@@ -142,6 +145,7 @@ public final class BxrootRuntime implements ContainerRuntime {
     env.remove("LD_PRELOAD");
     env.remove("LD_LIBRARY_PATH");
     env.put("BXROOT_LIB_PATH", new File(directory, "libbxroot-runtime.so").getAbsolutePath());
+    env.put("DSHA_BXROOT_RUNTIME_SHA256", runtimeSha256);
     env.put("BXROOT_TMP_DIR", tmp.getAbsolutePath());
     env.put("BXROOT_L2S_DIR", new File(root, ".l2s").getAbsolutePath());
     env.put("BXROOT_AUTO_HOST", "1");
