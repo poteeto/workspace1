@@ -273,11 +273,14 @@ public final class ThemeInstrumentation extends Instrumentation {
         field.setAccessible(true);
         require(field.get(null) == null, "已有用户终端，不能覆盖验收");
         require(PtyTerminalFragment.preferred(getTargetContext()), "当前选择简易终端，需使用独立 PTY 验收");
+        // Terminal is deliberately no longer a top-level navigation item.
+        // Navigate via the actual advanced-settings actions instead.
         runOnMainSync(
-            () ->
-                ((com.google.android.material.bottomnavigation.BottomNavigationView)
-                        MainActivity.active().findViewById(R.id.bottom_nav))
-                    .setSelectedItemId(R.id.nav_terminal));
+            () -> MainActivity.active().findViewById(R.id.settings_advanced_tools).performClick());
+        until(() -> MainActivity.active().findViewById(R.id.advanced_terminal) != null,
+            "高级工具页终端入口缺失");
+        runOnMainSync(
+            () -> MainActivity.active().findViewById(R.id.advanced_terminal).performClick());
         until(
             () -> {
               try {

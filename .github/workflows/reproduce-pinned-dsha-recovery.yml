@@ -1,0 +1,38 @@
+name: Reproduce pinned DSHA recovery runtime
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths: [.github/workflows/reproduce-pinned-dsha-recovery.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  repro:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: original
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - name: Install original exact pinned DSH rc2 npm tree
+        working-directory: original/tools/dsh-runtime
+        run: npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund
+      - name: Reproduce old Android runtime from original unchanged release recipe
+        working-directory: original
+        run: |
+          python3 tools/build-dsh-runtime.py \
+            --source tools/dsh-runtime/node_modules \
+            --output "$RUNNER_TEMP/recovery-dsh-runtime.bin"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          lock=json.loads(Path('tools/recovery-runtime/lock.json').read_text())
+          expected=next(x['sha256'] for x in lock['archives'] if x['asset']=='recovery-dsh-runtime.bin')
+          f=Path(os.environ['RUNNER_TEMP'])/'recovery-dsh-runtime.bin'
+          actual=hashlib.sha256(f.read_bytes()).hexdigest()
+          print('BACKUP_SHA256',actual,'EXPECTED',expected,'BYTES',f.stat().st_size)
+          if actual!=expected:raise SystemExit('PINNED_RECOVERY_RUNTIME_NOT_REPRODUCIBLE')
+          print('PINNED_RECOVERY_REPRODUCED')
+          PY

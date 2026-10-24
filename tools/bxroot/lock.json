@@ -31,7 +31,7 @@
     "runtimeOptimization": "O1",
     "launcherUlxOptimization": "O2",
     "ldFlags": "-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=4096 -Wl,-z,relro -Wl,-z,now -Wl,--build-id=sha1",
-    "sourceProofSha256": "64b54c69216a39fa00f3854a1110eb75d98e584d813eb6213d361d58d9405e2b",
+    "sourceProofSha256": "f6a10dad437e4ef63abaaf2019f38bd4450fe76dec727adf91d03579adb16159",
     "relinkMaterial": "artifacts/pr173/bxroot/bind-map-native/relink",
     "glibcSource": "https://archive.ubuntu.com/ubuntu/pool/main/g/glibc/glibc_2.39-0ubuntu8.dsc",
     "patchedSource": "artifacts/pr173/bxroot/bind-map-source",
@@ -53,7 +53,7 @@
     },
     {
       "path": "tools/bxroot/overlay.py",
-      "sha256": "abe5b35556a80a57a3c9127a3b1a127a5d5822b91329eee57e645dba6bda6240"
+      "sha256": "18454c1c581f1c1d5ddfe837043e90fe63ec89abc262db7d3935f09a3d380ce2"
     },
     {
       "path": "tools/bxroot/probe.c",
@@ -80,12 +80,16 @@
       "sha256": "96f28d94b574bd669fd1f7c0dbfa651954c33ea1d3f381a2f8d2084c6a98bb57"
     },
     {
+      "path": "tools/bxroot/test-known-probe.c",
+      "sha256": "da2385b6478000fa8baddd07e73a9a04f6cf6b3ce951276237ce48d20f7f4647"
+    },
+    {
       "path": "tools/bxroot/test-linux.py",
       "sha256": "88662fb1239813eb0b47445bf8cf943586c848de109dd874f8270e44432801cb"
     },
     {
       "path": "tools/bxroot/test-overlay.py",
-      "sha256": "9214518a9ad0bde0e0f0a7e4488642347fa36d947d0152e146da34106731ddc5"
+      "sha256": "ec613b00eaa762c00bad59f86a110979b2901017a18def703a525b258e1ee526"
     },
     {
       "path": "tools/bxroot/test-static-source.c",
@@ -112,7 +116,7 @@
     },
     {
       "name": "libbxroot-runtime.so",
-      "sha256": "53db5fec3cf010166a1da125bb12f688741ca2af33a12b8f2a1e09f5630d61de",
+      "sha256": "b4cc1fefe179fa270c7b54d8a68f6e34b0acc9ab36650e369ea79f9e872e3b91",
       "size": 377440,
       "elf": {
         "machine": 183,

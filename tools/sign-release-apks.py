@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""只为已核验的未签名正式源集签历史证书；不发布、不安装。"""
+"""只为已核验的未签名正式源集签 v179 起固定新证书；不发布、不安装。"""
 import argparse
 import hashlib
 import json
@@ -32,9 +32,9 @@ def main():
         parser.error("发布密钥/JDK/SDK 不可用")
     suffix = ".exe" if os.name == "nt" else ""
     identity = json.loads((ROOT / "ci/release-identity.json").read_text(encoding="utf-8"))
-    alias = os.environ.get("DSHA_KEY_ALIAS") or "androiddebugkey"
+    alias = os.environ.get("DSHA_KEY_ALIAS") or "dsha-publish"
     # Certificate output is binary DER. Keytool warnings must never be mixed
-    # into the bytes whose digest represents the historical certificate.
+    # into the bytes whose digest represents the fixed certificate.
     certificate = subprocess.run([str(args.java_home / ("bin/keytool" + suffix)), "-exportcert", "-alias", alias,
                        "-keystore", str(key), "-storepass:env", "DSHA_KEYSTORE_PASSWORD"],
                        stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True).stdout
@@ -76,7 +76,7 @@ def main():
         report.append({"flavor": flavor, "sha256": value, "unsignedSha256": hashlib.sha256(source.read_bytes()).hexdigest(),
                        "certificateSha256": identity["certificateSha256"], "schemes": identity["schemes"]})
     (args.output / "signing.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    print("PASS historical signing identity and v1/v2/v3; not installed or published")
+    print("PASS fixed signing identity and v1/v2/v3; not installed or published")
 
 
 if __name__ == "__main__":

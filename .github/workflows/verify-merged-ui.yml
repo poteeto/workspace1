@@ -1,0 +1,28 @@
+name: Verify merged monochrome UI and obsolete resources
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths: ['.github/workflows/verify-merged-ui.yml', 'tools/verify-monochrome-ui.py', 'app/src/main/res/**', 'app/src/main/java/com/deepseekharness/app/ui/**']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  ui:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static vector, semantics and DSH version contract
+        run: python3 tools/verify-monochrome-ui.py
+      - name: Audit obsolete bitmap usage without changing files
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('app/src')
+          uses=[]
+          suffixes={'.java','.kt','.xml','.gradle','.groovy','.json','.js','.ts','.css','.md'}
+          for path in root.rglob('*'):
+            if path.is_file() and path.suffix in suffixes:
+              data=path.read_text(encoding='utf-8',errors='ignore')
+              if 'R.drawable.dsha_brand' in data or '@drawable/dsha_brand' in data:
+                uses.append(path.as_posix())
+          print('OLD_BRAND_BITMAP_REFERENCES',uses)
+          PY

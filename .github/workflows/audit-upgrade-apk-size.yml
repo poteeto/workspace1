@@ -1,0 +1,38 @@
+name: Audit DSHA APK size against official release
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths: ['.github/workflows/audit-upgrade-apk-size.yml', 'tools/report-apk-size.py']
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download last verified experiment APK
+        uses: actions/download-artifact@v4
+        with:
+          name: DSHA-0.2.1-rc2-ARM64-EXPERIMENTAL-DEBUG
+          run-id: 39608426538
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Get official standard release for same-device comparison
+        run: |
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/DSH-APP/DSHA/releases/download/v0.2.0-rc2/dsha-0.2.0-rc2.apk \
+            --output official.apk
+          printf '%s  %s\n' \
+            '1fedf883d431af658d89c28b86d85974cc1d11b74e0c5d46ef3d3cf8650b1961' \
+            official.apk | sha256sum --check
+      - name: Report byte-accurate composition; preserve safety assets
+        run: |
+          python3 tools/report-apk-size.py official.apk candidate/*.apk --json apk-size-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DSHA-apk-size-breakdown
+          path: apk-size-report.json
+          retention-days: 14

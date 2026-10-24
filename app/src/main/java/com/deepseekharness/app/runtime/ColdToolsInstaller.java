@@ -51,7 +51,7 @@ final class ColdToolsInstaller {
                       com.deepseekharness.app.util.UiText.format("检查离线安装运行方式：%s", mode.name()));
                   command =
                       com.deepseekharness.app.util.ColdInstallPlan.probeCommand(
-                          "/root/.dsha-cold-probe-" + java.util.UUID.randomUUID());
+                          "/root/.dsha-cold-probe-" + java.util.UUID.randomUUID(), mode);
                 } else {
                   if (!frozen.equals(packageFingerprint(boot, fs, hostRoot, slot)))
                     throw new IOException("COLD_PACKAGE_CHANGED");
@@ -70,7 +70,7 @@ final class ColdToolsInstaller {
                   command = com.deepseekharness.app.util.ColdInstallPlan.installCommand(guest);
                 }
                 try {
-                  var result = collectColdCommand(boot, mode, command, probe ? 45_000 : 180_000);
+                  var result = collectColdCommand(boot, mode, command, probe ? 60_000 : 180_000);
                   return new com.deepseekharness.app.util.ColdInstallPlan.Observation(
                       result.exitCode,
                       result.timedOut,
@@ -154,9 +154,9 @@ final class ColdToolsInstaller {
                     com.deepseekharness.app.util.UiText.format("检查离线安装运行方式：%s", mode.name()));
                 String command =
                     com.deepseekharness.app.util.ColdInstallPlan.probeCommand(
-                            "/root/.dsha-cold-probe-" + java.util.UUID.randomUUID())
+                            "/root/.dsha-cold-probe-" + java.util.UUID.randomUUID(), mode)
                         + " && printf '\\nDSHA_UBUNTU_TOOLS_READY\\n'";
-                var result = collectColdCommand(boot, mode, command, 30_000);
+                var result = collectColdCommand(boot, mode, command, 60_000);
                 return new com.deepseekharness.app.util.ColdInstallPlan.Observation(
                     result.exitCode,
                     result.timedOut,
@@ -177,7 +177,17 @@ final class ColdToolsInstaller {
   private static java.util.List<com.deepseekharness.app.util.ColdInstallPlan.Mode> modes(
       ProotBootstrap boot, boolean configured) throws IOException {
     var settings = boot.hostPorts().settings();
-    ContainerRuntime selected = boot.packageRuntime();
+    // IMPORTANT: this method is called BEFORE the cold package probe has run.
+    // RuntimeExecution.packageRuntime() performs the *ordinary installed-root*
+    // bxroot capability preflight. That preflight expects a fully qualified
+    // running environment and can throw RUNTIME_CAPABILITY_UNCONFIRMED while
+    // the freshly unpacked Ubuntu tools are still being staged. It is neither
+    // the cold probe nor authority to publish the candidate.
+    //
+    // Select a prepared native launcher without executing it. The separate
+    // ColdInstallPlan.runConfigured/run below owns the complete read-only
+    // probe, optional *explicitly proven* proot fallback, and publish gate.
+    ContainerRuntime selected = boot.hostPorts().engine(boot.ctx, boot.forceProot).runtime;
     return com.deepseekharness.app.util.ColdInstallPlan.modes(
         "bxroot".equals(selected.id()),
         "bxroot".equals(selected.id()),

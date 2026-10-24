@@ -21,6 +21,12 @@ public class UpdatePolicyTest {
   }
 
   @Test
+  public void customizedBuildDoesNotAllowUnreviewedAppUpdateFeeds() {
+    assertFalse("An upstream version code/signer is not sufficient for a custom fork",
+        UpdatePolicy.appUpdateEnabled());
+  }
+
+  @Test
   public void separatesChannelsAndEditionsAndNeverDowngrades() {
     UpdatePolicy.Release stable = release(113, "stable", "low", 23);
     UpdatePolicy.Release preview = release(114, "preview", "low", 23);

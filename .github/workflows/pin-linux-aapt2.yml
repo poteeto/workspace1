@@ -1,0 +1,50 @@
+name: Verify official Google Maven Linux AAPT2 artifact
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths: [.github/workflows/pin-linux-aapt2.yml]
+  workflow_dispatch:
+permissions: {contents: write}
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Linux AAPT2 from official Google Maven repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/9.1.1-14792394/'
+          curl -fsSL --retry 2 "${base}aapt2-9.1.1-14792394-linux.jar" -o /tmp/aapt2-linux.jar
+          sha256sum /tmp/aapt2-linux.jar
+      - name: Preserve existing Gradle verification pins and add Linux AAPT2 checksum
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          metadata=Path('gradle/verification-metadata.xml')
+          blob=Path('/tmp/aapt2-linux.jar').read_bytes()
+          value=hashlib.sha256(blob).hexdigest()
+          text=metadata.read_text()
+          start='<component group="com.android.tools.build" name="aapt2" version="9.1.1-14792394">'
+          old=start+'\n         <artifact name="aapt2-9.1.1-14792394-windows.jar">'
+          if text.count(old)!=1:raise SystemExit('AAPT2_METADATA_FORMAT_DRIFT')
+          stanza=(start+'\n'
+                  '         <artifact name="aapt2-9.1.1-14792394-linux.jar">\n'
+                  '            <sha256 value="'+value+'" origin="Official Google Maven: dl.google.com"/>\n'
+                  '         </artifact>\n'
+                  '         <artifact name="aapt2-9.1.1-14792394-windows.jar">')
+          text=text.replace(old,stanza)
+          metadata.write_text(text)
+          print('PINNED_LINUX_AAPT2_SHA256',value)
+          PY
+      - name: Commit original Maven binary checksum
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gradle/verification-metadata.xml
+          git diff --cached --quiet && exit 0
+          git commit -m "Pin official Google Maven Linux AAPT2 in strict Gradle verification"
+          git push origin HEAD:upgrade/dsh-0.2.1-rc.2

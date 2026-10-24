@@ -147,6 +147,7 @@ public final class UpdateEngine {
 
   /** 每个应用进程最多自动检查一次；旋转、主题重建及从 Web 返回不重复请求。 */
   public void checkOnStartup(boolean enabled) {
+    if (!UpdatePolicy.appUpdateEnabled()) return;
     if (!enabled || startupChecked) return;
     startupChecked = true;
     if (busy.get() || shouldResume()) return;
@@ -168,6 +169,7 @@ public final class UpdateEngine {
   }
 
   private void check(boolean startup) {
+    if (!UpdatePolicy.appUpdateEnabled()) return;
     final String requestedChannel = channel;
     submit(
         com.deepseekharness.app.util.UiText.format(
@@ -245,6 +247,7 @@ public final class UpdateEngine {
   }
 
   public void download() {
+    if (!UpdatePolicy.appUpdateEnabled()) return;
     if (!currentCandidate() || !candidate.valid() || !busy.compareAndSet(false, true)) return;
     cancelled = false;
     stopReason = "";
@@ -281,6 +284,7 @@ public final class UpdateEngine {
 
   /** 由前台服务调用；进程重建后从持久清单和实际文件长度恢复。 */
   public synchronized void runDownload() {
+    if (!UpdatePolicy.appUpdateEnabled()) return;
     if (runningDownload || !shouldResume()) return;
     runningDownload = true;
     busy.set(true);
@@ -539,6 +543,8 @@ public final class UpdateEngine {
   }
 
   public File installableApk() throws Exception {
+    if (!UpdatePolicy.appUpdateEnabled())
+      throw new IOException("CUSTOM_BUILD_APP_UPDATE_DISABLED");
     UpdatePolicy.Release release = candidate;
     File file = verifiedApk;
     String sourceChannel = candidateChannel;

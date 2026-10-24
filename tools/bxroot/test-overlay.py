@@ -21,7 +21,7 @@ ARCHIVE_SHA = '0682b2b868d7bfc2213e63c3736a967af355ea051459ea4b8107e27fa559124f'
 # ULX is byte-identical to the isolated page-aligned source that passed the
 # negative collision control and six positive AArch64/QEMU handoff cases.
 EXPECTED = {
-    'src/proc/proc.c': 'd6432e3e1c8941b24b73b6b6495ad26470f618821eecdd1d2cb717b37099d287',
+    'src/proc/proc.c': '8cf08723bdb57d650f8bc0262d54481c9c4dbb487f47c8b76a30b53e09ed23e4',
     'src/runtime/static_exec.c': '33f791b831533cc1a354cb5705a8363571e2aeca666ea550e0e13f6179f6936a',
     'src/launcher/launcher.c': 'fa66099c83ee204e001a26cb105e10d2bc98c4250f07aca0345df736f48dd44a',
     'src/ldr/ulx.c': 'ae9fb0e88fd12c473652ec4ee4a0afa1bb221cb975ca9652037fa9dee0f7fe61',
@@ -62,6 +62,18 @@ class FixedSourceOverlayTests(unittest.TestCase):
         self.assertEqual(EXPECTED, proof)
         for name, digest in proof.items():
             self.assertEqual(digest, hashlib.sha256((self.source / name).read_bytes()).hexdigest())
+
+    def test_recorded_existence_probe_never_authorizes_real_signals(self):
+        if os.name == 'nt':
+            self.skipTest('Native C predicate runs on Linux CI; do not invoke WSL')
+        overlay.apply(self.source)
+        actual=(self.source/'src/proc/proc.c').read_text(encoding='utf-8')
+        start=actual.index('static int px_dsha_known_process_probe(')
+        end=actual.index('\n}\n',start)+len('\n}\n')
+        (self.source/'known-process-probe-test.inc').write_text(actual[start:end])
+        binary=self.source/'known-process-probe'
+        subprocess.run(['cc','-Wall','-Wextra','-Werror','-fsanitize=undefined','-I',str(self.source),str(HERE/'test-known-probe.c'),'-o',str(binary)],check=True)
+        subprocess.run([str(binary)],check=True)
 
     def test_missing_ulx_handoff_anchor_is_rejected(self):
         target = self.source / 'src/ldr/ulx.c'

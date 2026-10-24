@@ -12,13 +12,24 @@ public final class LogScrollView extends ScrollView {
   private float lastY;
   private boolean interacting;
   private long gestureRevision;
+  private boolean viewportBounded = true;
 
   public LogScrollView(Context context, AttributeSet attrs) {
     super(context, attrs);
   }
 
+  /** 独立日志页使用全部可用高度；嵌在安装页时仍保留原有高度限制。 */
+  public void setViewportBounded(boolean value) {
+    viewportBounded = value;
+    requestLayout();
+  }
+
   @Override
   protected void onMeasure(int widthSpec, int heightSpec) {
+    if (!viewportBounded) {
+      super.onMeasure(widthSpec, heightSpec);
+      return;
+    }
     // 短屏保留页面操作空间；大屏的长日志也不无限撑开页面。
     int heightDp =
         Math.max(144, Math.min(220, getResources().getConfiguration().screenHeightDp / 3));

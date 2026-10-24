@@ -145,11 +145,20 @@ final class RuntimeLauncher {
         .runtime;
   }
 
-  private LaunchSpec capable(LaunchSpec spec) throws IOException {
+  LaunchSpec capable(LaunchSpec spec) throws IOException {
     return capable(spec, false);
   }
 
   private LaunchSpec capable(LaunchSpec spec, boolean packages) throws IOException {
+    // The cold-install command IS the read-only engine qualification. An
+    // additional installed-root preflight here runs against an incomplete
+    // candidate before ColdInstallPlan can collect its probe output. Do not
+    // silently fall back in this path: ColdInstallPlan controls which frozen
+    // engine is allowed to run, and rejects unknown/unclean failures.
+    if (spec.coldMode != null) {
+      verifyColdProbeOwnership(spec);
+      return spec;
+    }
     if (!"bxroot".equals(spec.runtime.id())) return spec;
     String fingerprint = RuntimeEngineQualification.fingerprint(context, rootfs, packages);
     String key = fingerprint + (packages ? ":bxroot:packages" : ":bxroot");
@@ -168,6 +177,14 @@ final class RuntimeLauncher {
       return spec;
     }
     return copyWithRuntime(spec, ports.capabilityFallback(context));
+  }
+
+  static void verifyColdProbeOwnership(LaunchSpec spec) throws IOException {
+    if (spec.coldMode == null
+        || !spec.coldTrace
+        || spec.hardlinks
+        || !spec.coldMode.runtime.equals(spec.runtime.id()))
+      throw new IOException("COLD_FROZEN_ENGINE_MISMATCH");
   }
 
   private static LaunchSpec copyWithRuntime(LaunchSpec value, ContainerRuntime runtime) {

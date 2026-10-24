@@ -1,0 +1,63 @@
+name: Android 15 KVM emulator ARM bridge native identity test
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths:
+      - .github/workflows/android-v177-kvm-bridge.yml
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  android-kvm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check available hardware acceleration
+        run: |
+          set -euo pipefail
+          uname -m
+          test -e /dev/kvm
+          ls -l /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install Android 15 x86_64 Google APIs image
+        run: |
+          set -euo pipefail
+          { yes || true; } | sdkmanager --install 'emulator' 'platform-tools' 'system-images;android-35;google_apis;x86_64'
+          mkdir -p "$HOME/.android/avd"
+          # Avoid avdmanager writing to an action-specific ANDROID_SDK_HOME.
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          echo no | avdmanager create avd -n dsha-kvm -k 'system-images;android-35;google_apis;x86_64' -d pixel_7 -p "$ANDROID_AVD_HOME/dsha-kvm.avd" --force
+          test -f "$ANDROID_AVD_HOME/dsha-kvm.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -list-avds | tee android-avd-list.txt
+          grep -qx dsha-kvm android-avd-list.txt
+      - name: Keep AVD home consistent with the previous job step
+        run: |
+          mkdir -p "$HOME/.android/avd"
+          ls -la "$HOME/.android/avd"
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v177-ANDROID-BIRTH
+          run-id: 39657235016
+          github-token: ${{ github.token }}
+          path: packaged/main
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-v177-ARM64-KERNEL-BIRTH-ANDROIDTEST
+          run-id: 39657235016
+          github-token: ${{ github.token }}
+          path: packaged/tests
+      - name: Install and test ARM64 APK under Android native translation
+        run: bash tools/android-kvm-bridge-test.sh packaged/main packaged/tests
+      - name: Upload Android KVM diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSHA-v177-ANDROID-KVM-BRIDGE-EVIDENCE
+          path: emulator-evidence/
+          if-no-files-found: warn
+          retention-days: 7

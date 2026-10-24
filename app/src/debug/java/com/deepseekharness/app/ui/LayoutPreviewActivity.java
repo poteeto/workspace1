@@ -128,6 +128,8 @@ public final class LayoutPreviewActivity extends AppCompatActivity {
                 "layout",
                 getPackageName());
     View body = getLayoutInflater().inflate(layout, null, false);
+    if (scene.equals("activity_startup_log"))
+      ((LogScrollView) body.findViewById(R.id.launch_log_scroll)).setViewportBounded(false);
     boolean fragment =
         scene.startsWith("fragment_") || scene.startsWith("plugins") || scene.startsWith("launch");
     canvas = fragment ? getLayoutInflater().inflate(R.layout.activity_main, null, false) : body;
@@ -154,20 +156,26 @@ public final class LayoutPreviewActivity extends AppCompatActivity {
           scene.contains("config")
               || scene.contains("workspace")
               || scene.equals("fragment_install")
-              || scene.contains("device_grants");
+              || scene.contains("device_grants")
+              || scene.contains("terminal");
       visible(R.id.sub_back, nested);
       visible(R.id.app_logo, !nested);
-      ((TextView) canvas.findViewById(R.id.btn_theme))
-          .setText(
-              com.deepseekharness.app.util.UiText.text(ThemeController.isDark(this) ? "黑夜" : "白天"));
+      // Match MainActivity.renderThemeButton: production uses an icon, not the retired label.
+      TextView theme = canvas.findViewById(R.id.btn_theme);
+      theme.setText("");
+      String preference = ThemeController.preference(this);
+      theme.setCompoundDrawablesWithIntrinsicBounds(
+          com.deepseekharness.app.util.UiThemePreference.SYSTEM.equals(preference)
+              ? R.drawable.ic_ui2_auto
+              : com.deepseekharness.app.util.UiThemePreference.LIGHT.equals(preference)
+                  ? R.drawable.ic_ui2_sun : R.drawable.ic_ui2_moon,
+          0, 0, 0);
       com.google.android.material.bottomnavigation.BottomNavigationView nav =
           canvas.findViewById(R.id.bottom_nav);
       nav.setSelectedItemId(
           title.equals("插件")
               ? R.id.nav_plugins
-              : title.equals("终端")
-                  ? R.id.nav_terminal
-                  : title.equals("启动") ? R.id.nav_launch : R.id.nav_settings);
+              : title.equals("启动") ? R.id.nav_launch : R.id.nav_settings);
     }
     frame.addView(
         canvas,
@@ -255,7 +263,6 @@ public final class LayoutPreviewActivity extends AppCompatActivity {
       text(
           R.id.launch_status,
           scene.equals("launch_error") ? "连续启动失败，自动重启已暂停。可检查插件后再试。" : "准备好后点击启动，进入本机对话。");
-      text(R.id.launch_log, "[布局样例] 检查运行环境\n[布局样例] 等待启动\n\n本页面不启动 dsh，不执行模型请求。");
       if (scene.equals("launch_error")) {
         visible(R.id.launch_recovery, true);
         text(R.id.launch_recovery, "恢复选项");

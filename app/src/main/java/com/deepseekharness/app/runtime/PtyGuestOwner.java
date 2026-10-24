@@ -25,6 +25,7 @@ public final class PtyGuestOwner {
           supervisor,
           "--pty-existing-session",
           preparing.argument(),
+          record.receiptArgument(),
           "--stop-signal=" + (engineArgv[0].contains("libproot") ? 3 : 15),
           "--");
       java.util.Collections.addAll(command, engineArgv);

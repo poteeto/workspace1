@@ -1,0 +1,50 @@
+{
+  "versionCode": 183,
+  "versionName": "0.2.33-20261023.2200-dsh0.2.1-rc.2",
+  "sha256": "e52a958bd926a1ac0f9c596ac74dbbe5658a2ba20c8b7e18a093abb92b89b73d",
+  "bytes": 298182289,
+  "certificateSha256": "c61f876e7dc688a52484b9a4da38040acc193ffec5f329b0511a32014367b601",
+  "applicationSource": "5d3741613704718f516e11a58904b5cb0542044f",
+  "fullPipelineRun": 39977822726,
+  "artifactId": 12513067563,
+  "signedArtifactSha256": "98a823f2a649d0427ef9c33b9e03fcd22f1877fcd04512b7f7c892224f3bfed8",
+  "checks": {
+    "junit": {
+      "standard": {
+        "tests": 1720,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 3
+      },
+      "low": {
+        "tests": 1720,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 3
+      }
+    },
+    "releaseLint": {
+      "standard": {
+        "Error": 0,
+        "Fatal": 0,
+        "Warning": 238
+      },
+      "low": {
+        "Error": 0,
+        "Fatal": 0,
+        "Warning": 166
+      }
+    },
+    "debugOnlyFixturesExcludedFromRelease": true,
+    "automaticPipOffByDefaultAndOptInSystemBehavior": "passed",
+    "separateStartupLogPageAndScroll": "passed",
+    "nativeLayoutsZhEnLightDarkShortScreenFont130Percent": "passed",
+    "threeActualAppProcessReopensAndNativeExitProtocol": "passed",
+    "fixedCertificateAndReleaseContent": "passed"
+  },
+  "limitations": [
+    "Not tested on the user realme Android 16 phone.",
+    "PiP system test uses a static debug-only page in the real shared browser host, without a DSH backend.",
+    "Native layout tests render actual layouts; missing Ubuntu installation is bypassed. This is not full DSH conversation or device acceptance."
+  ]
+}

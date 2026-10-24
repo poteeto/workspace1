@@ -1,5 +1,5 @@
 {
-  "dshVersion": "0.2.0-rc.2",
+  "dshVersion": "0.2.1-rc.2",
   "module": "@deepseek-ai/dsh-agent-loop/lib/index.js",
   "packageVersion": "0.2.0-rc.2",
   "canonicalSourceSha256": "00c4814d63f3d1e2754eb09144832d19b30499d6ea444730473f740b587948c2",

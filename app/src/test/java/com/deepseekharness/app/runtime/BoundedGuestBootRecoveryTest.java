@@ -139,13 +139,28 @@ public class BoundedGuestBootRecoveryTest {
     JvmBackupFileSystem fs = new JvmBackupFileSystem();
     File files = temporary.newFolder();
     var operation = BoundedGuestSessions.begin(fs, files);
-    operation.uncertain();
     File entry = new File(files, "bounded-guest-active/" + operation.id());
     write(fs, new File(entry, "identity"), operation.id() + "\n3151 172477833 3151\n");
     write(fs, new File(entry, "protocol"), "DSHA_OWNED_TREE_V2\n");
     Fixture f = new Fixture(files, entry, operation.id(), fs);
     assertThrows(IOException.class, () -> reap(f, BOOT_A));
     assertFalse(journal(f).exists());
+  }
+
+  @Test
+  public void failedOwnerCanAcquireCheckpointButCannotClearUntilRealReboot() throws Exception {
+    JvmBackupFileSystem fs = new JvmBackupFileSystem();
+    File files = temporary.newFolder();
+    var operation = BoundedGuestSessions.begin(fs, files);
+    File entry = new File(files, "bounded-guest-active/" + operation.id());
+    write(fs, new File(entry, "identity"), operation.id() + "\n3151 172477833 3151\n");
+    write(fs, new File(entry, "protocol"), "DSHA_OWNED_TREE_V2\n");
+    operation.uncertain();
+    Fixture f = new Fixture(files, entry, operation.id(), fs);
+    checkpoint(f);
+    checkpoint(f);
+    reap(f, BOOT_B);
+    closed(f);
   }
 
   @Test

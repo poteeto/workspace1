@@ -4,7 +4,7 @@ plugins {
 
 // 两版共用功能和离线环境；只有 low 携带兼容旧 Android 的 Gecko 内核。
 // 文件名独立于可诊断版本名，保持当前用户下载入口不变。
-ext.dshaApkNameVersion = '0.2.0-rc2.1'
+ext.dshaApkNameVersion = '0.2.34'
 def bundledTools = new groovy.json.JsonSlurper().parse(rootProject.file('tools/runtime-tools.lock.json'))
 if (bundledTools.schema != 1 || !(bundledTools.pnpm.version ==~ /[0-9]+\.[0-9]+\.[0-9]+/))
     throw new GradleException('随包工具身份格式错误')
@@ -23,9 +23,11 @@ android {
         minSdk 30
         targetSdk 37
         buildConfigField 'String', 'BUNDLED_PNPM_VERSION', '"' + bundledTools.pnpm.version + '"'
-        versionCode 173
+        // Slim release: no second/legacy DSH recovery runtime; native data backup remains available.
+        buildConfigField 'boolean', 'BUNDLED_LEGACY_RECOVERY', 'false'
+        versionCode 184
         // DSHA 修订号 + 固定的北京时间戳 + 内置 DSH 版本；同一交付重建不变。
-        versionName "0.2.24-20261014.1308-dsh0.2.0-rc.2"
+        versionName "0.2.34-20261024.0000-dsh0.2.1-rc.2"
         testInstrumentationRunner project.findProperty('dsha.testRunner') ?: "com.deepseekharness.app.Rc13Instrumentation"
         ndk {
             abiFilters 'arm64-v8a'
@@ -48,12 +50,12 @@ android {
     }
 
     signingConfigs {
-        // 线上发布签名 = DSHA-ACTUAL-PUBLISH-KEY-debug.keystore（alias androiddebugkey，
-        // 证书 SHA-256 E7:E3:A3:1A:75:94:6F:26:69:19:4C:97:2B:3D:D0:C9:AE:A3:FC:7C:50:A8:B8:85:D2:DE:E7:10:B2:2A:53:F5）。
-        // v1.1.7 起线上包都是这把 debug keystore 签的（历史原因，勿换），
-        // Android 只允许同签名覆盖安装，换钥 = 逼用户卸载重装丢数据。
-        // 另一把 DSHA-release.keystore 只签增量更新清单，绝不混用。
-        // 正式任务必须明确提供历史发布证书；单测/debug 不依赖发布密钥。
+        // 用户于 v180 决定废弃无法恢复的 E7E3 旧发布密钥。
+        // 新固定发布证书 SHA-256: c61f876e7dc688a52484b9a4da38040acc193ffec5f329b0511a32014367b601
+        // 新 keystore 为 PKCS12，alias=dsha-publish。私钥不得提交公开仓库，
+        // 而须单独安全备份并在后续每个版本重复使用，不得再次自行换钥。
+        // 旧 E7E3 安装只能先备份数据并卸载一次；新密钥版本之间允许同签名覆盖。
+        // 正式任务必须明确提供固定新证书及口令；单测/debug 不依赖发布密钥。
         publish {
             def ksPath = System.getenv("DSHA_KEYSTORE") ?: project.findProperty("dsha.keystore")
             if (ksPath != null && !ksPath.toString().isEmpty() && file(ksPath).exists()) {
@@ -61,14 +63,14 @@ android {
                 storePassword System.getenv("DSHA_KEYSTORE_PASSWORD")
                         ?: project.findProperty("dsha.keystore.password")
                 keyAlias System.getenv("DSHA_KEY_ALIAS")
-                        ?: project.findProperty("dsha.key.alias") ?: "androiddebugkey"
+                        ?: project.findProperty("dsha.key.alias") ?: "dsha-publish"
                 keyPassword System.getenv("DSHA_KEY_PASSWORD")
                         ?: project.findProperty("dsha.key.password")
                 if (!storePassword || !keyPassword)
                     throw new GradleException('必须明确提供发布密钥口令，不能使用隐式缺省值')
-                println "签名：已配置历史发布证书"
+                println "签名：已配置 v180 起固定新发布证书"
             } else {
-                println "签名：未配置历史发布证书；正式 APK 打包将被阻止"
+                println "签名：未配置固定新发布证书；正式 APK 打包将被阻止"
             }
             enableV1Signing true
             enableV2Signing true
@@ -88,6 +90,13 @@ android {
     }
 
     packagingOptions {
+        dex {
+            // Download-size optimization only: dex bytes/code stay identical.
+            // Standard (API 30+) otherwise STORES every classes*.dex in the APK.
+            // This may add extraction/disk work on installation, so keep
+            // as a separately verifiable packaging decision.
+            useLegacyPackaging = true
+        }
         jniLibs {
             useLegacyPackaging = true
             // 运行时和应急启动器绑定签名 APK 中的完整字节，禁止打包阶段 strip 改写。
@@ -119,8 +128,7 @@ android {
     }
 
     sourceSets {
-        main.assets.setSrcDirs([layout.buildDirectory.dir("generated/standardAssets").get().asFile,
-                layout.buildDirectory.dir("generated/recoveryAssets").get().asFile])
+        main.assets.setSrcDirs([layout.buildDirectory.dir("generated/standardAssets").get().asFile])
         main.java.srcDir(layout.buildDirectory.dir("generated/uiLanguage").get().asFile)
         // Both browser test entry points load one test-only HTML fixture.
         debug.assets.srcDir(rootProject.file("tools/fixtures/web-state"))
@@ -132,14 +140,14 @@ def verifyPublishCertificate = tasks.register("verifyPublishCertificate") {
     doLast {
         def signing = android.signingConfigs.publish
         if (signing.storeFile == null || !signing.storeFile.isFile())
-            throw new GradleException("正式 APK 缺少历史 E7E3 发布密钥，停止打包")
+            throw new GradleException("正式 APK 缺少 v180 起固定发布密钥，停止打包")
         def store = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
         signing.storeFile.withInputStream { store.load(it, signing.storePassword.toCharArray()) }
         def certificate = store.getCertificate(signing.keyAlias)
         def expected = new groovy.json.JsonSlurper().parse(rootProject.file('ci/release-identity.json')).certificateSha256
         if (certificate == null || java.security.MessageDigest.getInstance("SHA-256")
                 .digest(certificate.encoded).encodeHex().toString() != expected)
-            throw new GradleException("发布证书不是历史 E7E3，停止打包")
+            throw new GradleException("发布证书不匹配固定 v180 新密钥，停止打包")
     }
 }
 tasks.configureEach {
@@ -295,9 +303,8 @@ def prepareRecoveryAssets = tasks.register("prepareRecoveryAssets", Exec) {
             "--output", layout.buildDirectory.dir("generated/recoveryAssets").get().asFile.absolutePath,
             "--shared-assets", layout.buildDirectory.dir("generated/standardAssets").get().asFile.absolutePath)
 }
-tasks.configureEach {
-    if (name.matches("merge(Standard|Low).*Assets")) dependsOn(prepareRecoveryAssets)
-}
+// Explicitly omit the independent old DSH recovery capsule from this slim build.
+// The task remains available for legacy builds but is not a build dependency.
 
 def verifyBackupDependencies = tasks.register("verifyBackupDependencies") {
     inputs.file(rootProject.file("tools/backup-dependencies.lock.json"))
@@ -350,7 +357,7 @@ def verifyBackupDependencies = tasks.register("verifyBackupDependencies") {
     }
 }
 tasks.withType(JavaCompile).configureEach { dependsOn(verifyBackupDependencies) }
-tasks.named("preBuild").configure { dependsOn(prepareStandardAssets, prepareRecoveryAssets) }
+tasks.named("preBuild").configure { dependsOn(prepareStandardAssets) }
 def prepareUiLanguages = tasks.register("prepareUiLanguages", Exec) {
     inputs.file(rootProject.file("tools/prepare-ui-languages.py"))
     inputs.file(rootProject.file("tools/i18n/messages.json"))

@@ -1,0 +1,124 @@
+name: Validate DSH 0.2.1-rc.2 upgrade
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths:
+      - .github/workflows/validate-dsh-rc2-upgrade.yml
+      - tools/dsh-runtime/package.json
+      - tools/build-dsh-runtime.py
+      - tools/test-lexical-claim-compat.mjs
+      - tools/verify-dsh-upgrade-apk.py
+      - app/src/main/assets/*-patch.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  resolve-and-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+      - name: Audit availability of every pinned npm dependency
+        run: node tools/audit-dsh-published-packages.mjs
+      - name: Install release dependencies without running third-party scripts
+        working-directory: tools/dsh-runtime
+        run: npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund
+      - name: Inspect upstream changes to patch targets
+        run: python3 tools/inspect-dsh-upgrade-changes.py
+      - name: Audit all DSHA mobile overlay compatibility anchors
+        run: python3 tools/audit-dsh-patches.py
+      - name: Audit PDF preview and URI bridge adapter source anchors
+        run: python3 tools/audit-dsh-pdf.py
+      - name: Inspect updated Lexical styling implementation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path("tools/dsh-runtime/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js").read_text()
+          lines = text.splitlines()
+          matches = [i for i, line in enumerate(lines) if "TOKEN_STYLE" in line or "splitText(" in line]
+          print("Matching lines:", len(matches))
+          shown = set()
+          for match in matches[:30]:
+            for i in range(max(0,match-4),min(len(lines),match+7)):
+              if i not in shown:
+                print(f"{i+1}: {lines[i]}")
+                shown.add(i)
+          PY
+      - name: Probe DSHA's pinned Android compatibility anchors
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('.')
+          pkgs = root / 'tools/dsh-runtime/node_modules'
+          anchors = {
+            'rc1-settings-migration-patch.json': 'dsh-settings/lib/index.js',
+            'workspace-directory-policy-patch.json': 'dsh-api-workspace-controller/lib/index.js',
+            'client-combo-patch.json': 'dsh-client-modules/lib/index.js',
+            'deepseek-messages-compat-patch.json': 'dsh-llm-deepseek/lib/index.js',
+            'lexical-claim-patch.json': 'dsh-client-ui-conversation/lib/client.js',
+            'conversation-materialized-patch.json': 'dsh-client-ui-conversation/lib/client.js'
+          }
+          reports = []
+          for name, module in anchors.items():
+            path = root / 'app/src/main/assets' / name
+            recipe = json.loads(path.read_text(encoding='utf-8'))
+            target = pkgs / '@deepseek-ai' / module
+            if not target.exists():
+              reports.append((name, 'MODULE_MISSING', str(target)))
+              continue
+            source = target.read_text(encoding='utf-8')
+            missing = sum(source.count(patch.get('before','')) != 1
+                          for patch in recipe.get('patches', []))
+            if name == 'lexical-claim-patch.json' and missing:
+              if recipe.get('dshVersion') == '0.2.1-rc.2' and 'TOKEN_STYLE' not in source:
+                reports.append((name, 'OLD_TRANSFORM_REMOVED', 'old anchor and TOKEN_STYLE absent'))
+                continue
+            reports.append((name, 'ANCHOR_OK' if not missing else 'ANCHOR_CHANGED', str(missing)))
+          for n,status,detail in reports:
+            print(f'{status:16} {n}: {detail}')
+          broken = [n for n,status,_ in reports if status not in ('ANCHOR_OK','OLD_TRANSFORM_REMOVED')]
+          with open('/tmp/dsha-compat-results.txt','w') as f:
+            f.write('\n'.join(f'{n}: {status} ({detail})' for n,status,detail in reports))
+          if broken:
+            raise SystemExit('Existing version-specific Android patches need porting: ' + ', '.join(broken))
+          PY
+      - name: Inspect rc2 session backend tracker layout
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          f = Path('tools/dsh-runtime/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js')
+          rows = f.read_text().splitlines()
+          matches = [i for i,s in enumerate(rows) if 'tracker' in s or 'JsonlBackendTracker' in s]
+          print('Tracker matches:',len(matches))
+          printed=set()
+          for k in matches[:18]:
+            for j in range(max(k-2,0),min(k+4,len(rows))):
+              if j not in printed:
+                print(f'{j+1}: {rows[j]}')
+                printed.add(j)
+          PY
+      - name: Build DSH Linux runtime archive with guarded DSHA patches
+        shell: bash
+        run: |
+          python3 tools/build-dsh-runtime.py \
+            --source tools/dsh-runtime/node_modules \
+            --output /tmp/dsha-upgraded-dsh-runtime.bin
+      - name: Test deterministic runtime packaging and signed plugin policy
+        run: python3 tools/test-dsh-runtime-packaging.py -v
+      - name: Check package-specific Lexical migration against the created archive
+        env:
+          DSHA_TEST_RUNTIME: tools/dsh-runtime
+          DSHA_RUNTIME_ARCHIVE: /tmp/dsha-upgraded-dsh-runtime.bin
+        run: node tools/test-lexical-claim-compat.mjs

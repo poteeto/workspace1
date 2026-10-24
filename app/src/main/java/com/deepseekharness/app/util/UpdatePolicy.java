@@ -11,6 +11,14 @@ public final class UpdatePolicy {
 
   private UpdatePolicy() {}
 
+  /**
+   * Disabled for this customized fork. A newer upstream APK, even with the same signer,
+   * may silently replace the custom runtime and UI; a fork-specific vetted feed is required.
+   */
+  public static boolean appUpdateEnabled() {
+    return false;
+  }
+
   public static final class Release {
     public final int versionCode, minSdk;
     public final String version, channel, flavor, abi, url, sha256, notes, pageUrl;

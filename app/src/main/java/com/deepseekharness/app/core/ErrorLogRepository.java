@@ -185,6 +185,26 @@ public final class ErrorLogRepository extends AndroidViewModel {
     text.append("runtimeTrialFailureRecorded=")
         .append(!com.deepseekharness.app.runtime.RuntimeTrial.latestFailure(context).isEmpty())
         .append('\n');
+    var pending = MaintenanceCoordinator.inspectPending(context.getFilesDir());
+    var maintenance = BackupTask.get(context).snapshot();
+    text.append("\n=== Maintenance recovery ===\n")
+        .append("blocked=").append(pending.blocked)
+        .append(" domain=").append(pending.domain)
+        .append(" operation=").append(pending.operation).append('\n')
+        .append("inspectionError=").append(pending.error).append('\n')
+        .append("taskId=").append(maintenance.id)
+        .append(" status=").append(maintenance.status)
+        .append(" kind=").append(maintenance.kind).append('\n')
+        .append("lastStage=").append(maintenance.lastStage).append('\n')
+        .append("detail=").append(com.deepseekharness.app.util.LogCompactor.compactReason(
+            SensitiveData.redact(maintenance.detail), 4096)).append('\n');
+    try {
+      for (var process : com.deepseekharness.app.runtime.BoundedGuestSessions.inspect(context.getFilesDir()))
+        text.append("processRecord=").append(process.id()).append(" state=")
+            .append(process.state()).append(" reason=").append(process.reason()).append('\n');
+    } catch (java.io.IOException unavailable) {
+      text.append("processInspectionError=").append(SensitiveData.redact(unavailable.getMessage())).append('\n');
+    }
     var emergency = com.deepseekharness.app.recovery.RecoveryController.get(context).snapshot();
     text.append(
             com.deepseekharness.app.util.UiText.choose(

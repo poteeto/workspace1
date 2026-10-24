@@ -50,6 +50,19 @@ public final class AdbWheelPaths {
               String target = fs.readLink(file);
               if (target == null || target.length() > 2048 || target.indexOf('\0') >= 0)
                 throw new IOException("ADB_LINK_FORMAT");
+              // Absolute paths under the host app-data parent may be another
+              // app's private files. Reject these before interpreting an
+              // otherwise unknown absolute path as a guest-root link.
+              // This also protects the same boundary when a JVM test uses a
+              // temporary private-data directory instead of Android /data.
+              if (new File(target).isAbsolute()) {
+                File hostArea = files.getParentFile().getParentFile();
+                File absolute = new File(target).getCanonicalFile();
+                if (hostArea != null
+                    && DocumentPaths.within(hostArea.getCanonicalFile(), absolute)
+                    && !DocumentPaths.within(files, absolute))
+                  throw new IOException("ADB_LINK_OUTSIDE_AUTHORITY");
+              }
               if (target.startsWith("/data/")
                   && !DocumentPaths.within(files, new File(target).getCanonicalFile()))
                 throw new IOException("ADB_LINK_OUTSIDE_AUTHORITY");

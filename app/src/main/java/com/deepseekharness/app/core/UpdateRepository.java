@@ -158,6 +158,12 @@ public final class UpdateRepository extends AndroidViewModel {
   }
 
   public void requestInstall() {
+    if (!UpdatePolicy.appUpdateEnabled()) {
+      installFailed(com.deepseekharness.app.util.UiText.choose(
+          "定制版已停用应用内升级，请仅使用经过兼容性验证的同签名构建。",
+          "In-app APK updates are disabled for this custom build."));
+      return;
+    }
     State current = state().getValue();
     if (cleared || installationPending() || current == null || current.busy) return;
     if (current.apk == null || current.release == null) {

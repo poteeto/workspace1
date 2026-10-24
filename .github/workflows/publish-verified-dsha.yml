@@ -1,0 +1,36 @@
+name: Publish verified DSHA GitHub Release
+on:
+  workflow_dispatch:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths:
+      - .github/workflows/publish-verified-dsha.yml
+      - ci/verified-release.json
+      - ci/verified-release-notes.md
+permissions:
+  actions: read
+  contents: write
+concurrency:
+  group: dsha-verified-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the matching complete build, Android checks and permanent signature
+        id: verified
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/publish-verified-release.py --preflight
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.verified.outputs.run_id }}
+          name: ${{ steps.verified.outputs.artifact_name }}
+          path: release-candidate
+      - name: Verify exact bytes and publish APK, checksum and validation record
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/publish-verified-release.py

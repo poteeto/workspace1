@@ -15,7 +15,7 @@ import com.deepseekharness.app.core.HarnessController;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 /**
- * 主界面外壳：启动门禁 + 底部导航（启动 / 插件 / 设置 / 终端）+ 顶栏标题 + 关于入口。
+ * 主界面外壳：启动门禁 + 底部导航（启动 / 插件 / 设置）+ 顶栏标题 + 关于入口。
  */
 public class MainActivity extends AppCompatActivity {
 
@@ -26,8 +26,6 @@ public class MainActivity extends AppCompatActivity {
     return activity instanceof MainActivity ? (MainActivity) activity : null;
   }
 
-  private com.deepseekharness.app.core.UpdateEngine startupUpdates;
-  private com.google.android.material.snackbar.Snackbar updateNotice;
   private boolean requestingLocalNetwork;
   private boolean restoreProbeStarted;
 
@@ -195,14 +193,7 @@ public class MainActivity extends AppCompatActivity {
             f = new SettingsFragment();
             title.setText(R.string.app_name);
           } else {
-            // 终端：默认挂真 PTY 页（vim/htop/tmux 能跑），可在 PTY 页切回简易版
-            f =
-                com.deepseekharness.app.core.EnvironmentAccess.needsRecovery(controller)
-                    ? new EnvironmentRecoveryFragment()
-                    : PtyTerminalFragment.preferred(this)
-                        ? new PtyTerminalFragment()
-                        : new TerminalFragment();
-            title.setText(R.string.app_name);
+            return false;
           }
           UiMotion.page(this, getSupportFragmentManager().beginTransaction())
               .replace(R.id.fragment_container, f)
@@ -218,72 +209,11 @@ public class MainActivity extends AppCompatActivity {
           getIntent().getBooleanExtra("open_plugins", false) ? R.id.nav_plugins : R.id.nav_launch);
     }
     consumeTaskTarget(getIntent());
-    // 只订阅后台检查；提示不切换导航，也不自动打开更新页或 Web。
-    startupUpdates = com.deepseekharness.app.core.UpdateEngine.get(this);
-    startupUpdates.state().observe(this, state -> showStartupUpdate());
-    startupUpdates.checkOnStartup(config.isCheckUpdate());
-  }
-
-  private void showStartupUpdate() {
-    if (startupUpdates == null
-        || updateNotice != null
-        || isFinishing()
-        || !hasWindowFocus()
-        || !getLifecycle().getCurrentState().isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
-        || !new ConfigStore(this).isCheckUpdate()) return;
-    com.deepseekharness.app.util.UpdatePolicy.Release release = startupUpdates.startupNotice();
-    if (release == null) return;
-    updateNotice =
-        com.google.android.material.snackbar.Snackbar.make(
-                findViewById(android.R.id.content),
-                com.deepseekharness.app.util.UiText.format(
-                    "发现新版本 %s · %s",
-                    release.version,
-                    com.deepseekharness.app.core.UpdateEngine.channelName(
-                        startupUpdates.channel())),
-                com.google.android.material.snackbar.Snackbar.LENGTH_LONG)
-            .setAnchorView(R.id.bottom_nav)
-            .setAction(
-                com.deepseekharness.app.util.UiText.text("查看更新"),
-                view -> startActivity(new Intent(this, UpdateActivity.class)));
-    updateNotice.addCallback(
-        new com.google.android.material.snackbar.Snackbar.Callback() {
-          @Override
-          public void onShown(com.google.android.material.snackbar.Snackbar bar) {
-            if (hasWindowFocus()
-                && getLifecycle()
-                    .getCurrentState()
-                    .isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED))
-              startupUpdates.markStartupNoticeShown(release);
-          }
-
-          @Override
-          public void onDismissed(com.google.android.material.snackbar.Snackbar bar, int event) {
-            if (updateNotice == bar) updateNotice = null;
-          }
-        });
-    updateNotice.show();
-  }
-
-  @Override
-  protected void onPostResume() {
-    super.onPostResume();
-    showStartupUpdate();
-  }
-
-  @Override
-  public void onWindowFocusChanged(boolean hasFocus) {
-    super.onWindowFocusChanged(hasFocus);
-    if (hasFocus) showStartupUpdate();
   }
 
   @Override
   protected void onPause() {
     recoveryHandler.removeCallbacks(refreshRecovery);
-    if (updateNotice != null) {
-      updateNotice.dismiss();
-      updateNotice = null;
-    }
     super.onPause();
   }
 
@@ -348,12 +278,25 @@ public class MainActivity extends AppCompatActivity {
         .show();
   }
 
+  /** Shared terminal entry for settings and the old open_terminal notification. */
+  static Fragment terminalPage(Context context) {
+    if (com.deepseekharness.app.core.EnvironmentAccess.needsRecovery(
+        HarnessController.get(context))) return new EnvironmentRecoveryFragment();
+    return PtyTerminalFragment.preferred(context)
+        ? new PtyTerminalFragment()
+        : new TerminalFragment();
+  }
+
   private void consumeTaskTarget(Intent intent) {
     BottomNavigationView nav = findViewById(R.id.bottom_nav);
     if (nav == null) return;
     if (intent.getBooleanExtra("open_terminal", false)) {
       intent.removeExtra("open_terminal");
-      nav.setSelectedItemId(R.id.nav_terminal);
+      nav.setSelectedItemId(R.id.nav_settings);
+      UiMotion.page(this, getSupportFragmentManager().beginTransaction())
+          .replace(R.id.fragment_container, terminalPage(this))
+          .addToBackStack("settings")
+          .commit();
     }
     if (intent.getBooleanExtra("open_install", false)) {
       intent.removeExtra("open_install");
@@ -415,10 +358,12 @@ public class MainActivity extends AppCompatActivity {
     else if (shown instanceof WorkspaceFragment)
       title.setText(com.deepseekharness.app.util.UiText.text("数据与备份"));
     else if (shown instanceof InstallFragment) title.setText(R.string.ui2_environment_page);
+    else if (shown instanceof AdvancedToolsFragment)
+      title.setText(com.deepseekharness.app.util.UiText.choose("高级工具", "Advanced tools"));
     else if (shown instanceof SettingsFragment) title.setText(R.string.app_name);
     else if (shown instanceof PluginFragment) title.setText(R.string.app_name);
     else if (shown instanceof TerminalFragment || shown instanceof PtyTerminalFragment)
-      title.setText(R.string.app_name);
+      title.setText(com.deepseekharness.app.util.UiText.choose("终端", "Terminal"));
     else title.setText(R.string.app_name);
   }
 

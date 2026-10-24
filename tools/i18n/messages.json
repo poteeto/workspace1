@@ -2423,8 +2423,8 @@
   },
   {
     "id": "m0294",
-    "zh": "下方实时显示启动输出；等待不会自动终止。",
-    "en": "Live startup output appears below. Waiting does not stop startup automatically.",
+    "zh": "启动日志中可查看完整输出；等待不会自动终止。",
+    "en": "See Startup log for full output. Waiting does not stop startup automatically.",
     "files": [
       "app/src/main/java/com/deepseekharness/app/ui/LaunchFragment.java"
     ]
@@ -31235,6 +31235,60 @@
     "en": "The location does not support safe writing, or the selected object changed. Choose a local phone folder, such as a backup folder you create in Downloads. Retry with “Export a verified copy again”. Local copies are not guaranteed to survive uninstalling the app.",
     "files": [
       "app/src/main/java/com/deepseekharness/app/ui/NativeDataActivity.java"
+    ]
+  },
+  {
+    "id": "v183_picture_in_picture_auto_enter",
+    "zh": "离开应用时自动进入小窗",
+    "en": "Automatically enter picture-in-picture",
+    "files": [
+      "app/src/main/res/values/picture_in_picture_strings.xml",
+      "app/src/main/res/values-en/picture_in_picture_strings.xml"
+    ]
+  },
+  {
+    "id": "v183_picture_in_picture_auto_enter_hint",
+    "zh": "默认关闭。开启后，切到桌面或其他应用会保留对话小窗；修改立即生效。",
+    "en": "Off by default. When enabled, the chat stays in a small window when you go Home or switch apps. Changes apply immediately.",
+    "files": [
+      "app/src/main/res/values/picture_in_picture_strings.xml",
+      "app/src/main/res/values-en/picture_in_picture_strings.xml"
+    ]
+  },
+  {
+    "id": "v183_picture_in_picture_allowed",
+    "zh": "系统已允许画中画；是否自动显示小窗由上方开关控制。",
+    "en": "Allowed by the system. The switch above controls automatic entry.",
+    "files": [
+      "app/src/main/res/values/picture_in_picture_strings.xml",
+      "app/src/main/res/values-en/picture_in_picture_strings.xml"
+    ]
+  },
+  {
+    "id": "v183_startup_log_entry_hint",
+    "zh": "查看实时输出、历史记录和下载日志",
+    "en": "View live output, history and download logs",
+    "files": [
+      "app/src/main/res/values/startup_log_strings.xml",
+      "app/src/main/res/values-en/startup_log_strings.xml"
+    ]
+  },
+  {
+    "id": "v183_startup_log_hint",
+    "zh": "实时显示本次启动的完整输出。上翻阅读时不会自动跳到底部。",
+    "en": "Live output from the current start. Scrolling up pauses automatic following.",
+    "files": [
+      "app/src/main/res/values/startup_log_strings.xml",
+      "app/src/main/res/values-en/startup_log_strings.xml"
+    ]
+  },
+  {
+    "id": "v183_startup_log_history",
+    "zh": "历史记录与诊断",
+    "en": "History and diagnostics",
+    "files": [
+      "app/src/main/res/values/startup_log_strings.xml",
+      "app/src/main/res/values-en/startup_log_strings.xml"
     ]
   }
 ]

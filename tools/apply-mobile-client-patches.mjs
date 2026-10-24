@@ -44,6 +44,9 @@ export function applyMobileClientPatches(bytes) {
       throw new Error('补丁模块范围缺失或不唯一: ' + startAnchor);
     source = source.slice(0, start) + after + source.slice(end);
   };
+  // rc2 已有语义化统计组件和原生上下文详情：停止旧环/速度覆盖层，保留旧宿主回退。
+  replace('    const mark = () => {\n        // Keyboard open/close and viewport rotations relayout the composer without',
+    '    const mark = () => {\n        if (document.querySelector(\'[data-composer-stat]\') !== null) return; // DSHA_WORKSPACE_STATS_NATIVE_V1\n        // Keyboard open/close and viewport rotations relayout the composer without');
   // 3.1.0 已吸收分享、WeakMap滚动/手势、焦点归属、聊天流过滤和#173胶囊修复。
   replaceRange('function syncStableViewportHeight() {', '/** iOS-only: mark documentElement',
     readFileSync(path.join(project, 'tools/mobile-viewport-sync.js'), 'utf8').trimEnd() + '\n');

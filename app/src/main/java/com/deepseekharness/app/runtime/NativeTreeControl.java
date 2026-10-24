@@ -32,7 +32,24 @@ public final class NativeTreeControl implements AutoCloseable {
   }
 
   public boolean treeEmpty() {
+    if (!treeEmpty && failure != null) {
+      try {
+        adoptSavedProof();
+      } catch (IOException invalid) {
+        failure = invalid;
+      }
+    }
     return treeEmpty;
+  }
+
+  private synchronized boolean adoptSavedProof() throws IOException {
+    Integer saved = record == null ? null : record.savedTreeExit();
+    if (saved == null) return false;
+    if (commandExit != null && !commandExit.equals(saved))
+      throw new IOException("OWNED_TREE_EXIT_CONFLICT");
+    commandExit = saved;
+    treeEmpty = true;
+    return true;
   }
 
   public boolean started() {
@@ -139,6 +156,12 @@ public final class NativeTreeControl implements AutoCloseable {
       }
       if (!treeEmpty) throw new IOException("OWNED_CONTROL_LOST_WITHOUT_TREE_PROOF");
     } catch (IOException | RuntimeException error) {
+      // 原生监督器在发送通知之前已 fsync 树空证明。断线不再丢掉已取得的内核证据。
+      try {
+        if (adoptSavedProof()) return;
+      } catch (IOException invalid) {
+        error.addSuppressed(invalid);
+      }
       failure =
           error instanceof IOException
               ? (IOException) error

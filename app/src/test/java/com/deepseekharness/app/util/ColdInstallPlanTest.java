@@ -111,6 +111,74 @@ public class ColdInstallPlanTest {
   }
 
   @Test
+  public void configuredColdProbeFallsBackOnlyAfterExplicitClosedCapabilityRejection()
+      throws Exception {
+    var observed = new ArrayList<String>();
+    var modes = ColdInstallPlan.modes(true, true, true, false);
+    var selected = ColdInstallPlan.runConfigured(
+        modes,
+        (mode, probe) -> {
+          observed.add(mode.name() + ":probe=" + probe);
+          return mode == ColdInstallPlan.Mode.BXROOT
+              ? result(78, false, true, "DSHA_ENGINE_CAPABILITY_UNSUPPORTED execveat")
+              : result(0, false, true,
+                  ColdInstallPlan.PROBE_READY + "\n" + ColdInstallPlan.INSTALL_READY);
+        },
+        (mode, probe, outcome) -> {});
+    assertEquals(ColdInstallPlan.Mode.PROOT, selected);
+    assertEquals(List.of("BXROOT:probe=true", "PROOT:probe=true"), observed);
+  }
+
+  @Test
+  public void configuredColdProbeRejectsUnconfirmedCapabilityWithoutEngineReplay() {
+    var observed = new ArrayList<String>();
+    var modes = ColdInstallPlan.modes(true, true, true, false);
+    assertThrows(IOException.class, () -> ColdInstallPlan.runConfigured(
+        modes,
+        (mode, probe) -> {
+          observed.add(mode.name());
+          return result(125, false, true,
+              "RUNTIME_CAPABILITY_UNCONFIRMED: package fingerprint unknown");
+        },
+        (mode, probe, outcome) -> {}));
+    assertEquals(List.of("BXROOT"), observed);
+  }
+
+  @Test
+  public void coldConfiguredProbeOwnsCompleteEngineCapabilityQualification() {
+    String command = ColdInstallPlan.probeScript();
+    assertTrue(command.contains("DSHA_ENGINE_PROBE_STAGE=SHELL"));
+    assertTrue(command.contains("DSHA_ENGINE_PROBE_STAGE=STATX_BEGIN"));
+    assertTrue(command.contains("DSHA_ENGINE_PROBE_STAGE=EXECVEAT_CHILD"));
+    assertTrue(command.contains("DSHA_ENGINE_CAPABILITY_READY"));
+    assertTrue(command.contains("DSHA_ENGINE_PACKAGE_CAPABILITY_READY"));
+    assertTrue(command.indexOf("DSHA_ENGINE_CAPABILITY_READY")
+        < command.indexOf(ColdInstallPlan.PROBE_READY));
+    assertTrue(command.indexOf("DSHA_ENGINE_PACKAGE_CAPABILITY_READY")
+        < command.indexOf(ColdInstallPlan.PROBE_READY));
+    assertFalse(command.contains("dpkg -i"));
+    assertFalse(command.contains("apt install"));
+  }
+
+  @Test
+  public void prootCompatibilityProbeKeepsPackageChecksWithoutBxrootSyscallConstraint() {
+    String bxroot = ColdInstallPlan.probeScript(ColdInstallPlan.Mode.BXROOT);
+    assertTrue(bxroot.contains("DSHA_ENGINE_PROBE_STAGE=STATX_BEGIN"));
+    assertTrue(bxroot.contains("DSHA_ENGINE_PROBE_STAGE=EXECVEAT_CHILD"));
+    String proot = ColdInstallPlan.probeScript(ColdInstallPlan.Mode.PROOT);
+    assertFalse(proot.contains("DSHA_ENGINE_PROBE_STAGE=STATX_BEGIN"));
+    assertFalse(proot.contains("DSHA_ENGINE_PROBE_STAGE=EXECVEAT_CHILD"));
+    assertTrue(proot.contains("DSHA_ENGINE_PACKAGE_CAPABILITY_READY"));
+    assertTrue(proot.contains(ColdInstallPlan.PROBE_READY));
+    assertEquals(proot, ColdInstallPlan.probeScript(ColdInstallPlan.Mode.PROOT_COMPAT));
+    String name = "/root/.dsha-cold-probe-12345678-1234-1234-1234-1234567890ab";
+    assertTrue(ColdInstallPlan.probeCommand(name, ColdInstallPlan.Mode.PROOT)
+        .contains("DSHA_ENGINE_PACKAGE_CAPABILITY_READY"));
+    assertThrows(IllegalArgumentException.class,
+        () -> ColdInstallPlan.probeCommand(name, ColdInstallPlan.Mode.PROROOT));
+  }
+
+  @Test
   public void failedPreferenceCommitCannotPublishReady() {
     List<String> calls = new ArrayList<>();
     assertThrows(

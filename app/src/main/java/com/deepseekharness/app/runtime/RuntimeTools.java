@@ -222,13 +222,19 @@ final class RuntimeTools {
       if (!pkg.isFile()) return;
       preparedFiles.add(pkg);
       String version = fileObject(pkg).getString("version");
-      if (!com.deepseekharness.app.util.Constants.DSH_VERSION.equals(
-          registry.getString("dshVersion"))) throw new IOException("PATCH_REGISTRY_VERSION");
-      if (!version.equals(registry.getString("dshVersion"))) {
+      String registryVersion = registry.getString("dshVersion");
+      String expectedVersion = com.deepseekharness.app.util.Constants.DSH_VERSION;
+      // An upgrade may stage a new APK over a still-running previous runtime.
+      // Never apply new patches to that old runtime, and never treat this
+      // temporary installed-runtime mismatch as a malformed APK registry.
+      if (!version.equals(registryVersion)) {
         RuntimeHostPorts.fromOwner(context.getApplicationContext())
-            .record("PATCH_RUNTIME_VERSION_MISMATCH", version);
+            .record("PATCH_RUNTIME_VERSION_MISMATCH", version + " != " + registryVersion);
         return;
       }
+      if (!expectedVersion.equals(registryVersion))
+        throw new IOException("PATCH_REGISTRY_VERSION: apk=" + expectedVersion
+            + ", registry=" + registryVersion + ", installed=" + version);
       removeLegacyPluginReviewPatches(context, rootfs);
       java.util.Map<String, java.util.List<com.deepseekharness.app.util.ManagedPatchChain.Recipe>>
           groups = new java.util.LinkedHashMap<>();
@@ -239,8 +245,10 @@ final class RuntimeTools {
         String asset = entry.getString("asset");
         if (!ids.add(asset)) throw new IOException("PATCH_REGISTRY_DUPLICATE");
         var spec = assetObject(context, asset);
-        if (!version.equals(spec.getString("dshVersion")))
-          throw new IOException("PATCH_REGISTRY_VERSION");
+        String recipeVersion = spec.getString("dshVersion");
+        if (!version.equals(recipeVersion))
+          throw new IOException("PATCH_RECIPE_VERSION: asset=" + asset
+              + ", installed=" + version + ", recipe=" + recipeVersion);
         String module = entry.has("module") ? entry.getString("module") : spec.getString("module");
         if (!com.deepseekharness.app.util.ManagedInstallPath.valid(module))
           throw new IOException("PATCH_MODULE_PATH");
@@ -396,19 +404,23 @@ final class RuntimeTools {
     if (Compat.isSymbolicLink(module)
         || !module.getCanonicalPath().startsWith(rootfs.getCanonicalPath() + File.separator))
       throw new IOException("LAN_SETTINGS_MODULE_PATH");
+    File dshPackage = new File(rootfs, "usr/local/lib/node_modules/@deepseek-ai/dsh/package.json");
+    if (!dshPackage.isFile()
+        || Compat.isSymbolicLink(dshPackage)
+        || !dshPackage.getCanonicalPath().startsWith(rootfs.getCanonicalPath() + File.separator))
+      throw new IOException("LAN_SETTINGS_DSH_PACKAGE_UNSAFE");
+    String version = fileObject(dshPackage).optString("version");
     String source = Compat.readAll(module);
     try {
       String patched =
-          com.deepseekharness.app.util.ExactTextPatch.apply(
-              source,
-              "const persistence = ctx.remote.$host.isLoopback ? \"host\" : \"memory\";",
-              "const persistence = \"host\"; // DSHA patch: LAN 代理场景强制 host 持久化");
+          com.deepseekharness.app.util.LanSettingsCompatibility.adapt(source, version);
       preparedFiles.add(module);
       if (!source.equals(patched))
         writeIfChanged(
             context, module, patched.getBytes(java.nio.charset.StandardCharsets.UTF_8), false);
     } catch (IllegalArgumentException error) {
-      throw new IOException("LAN_SETTINGS_PATCH_MISMATCH", error);
+      throw new IOException("LAN_SETTINGS_PATCH_MISMATCH: version=" + version
+          + ", reason=" + error.getMessage(), error);
     }
   }
 

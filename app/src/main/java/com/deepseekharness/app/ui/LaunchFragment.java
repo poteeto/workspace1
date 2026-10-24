@@ -31,7 +31,6 @@ public class LaunchFragment extends Fragment {
 
   private HarnessController controller;
   private TextView lanAddrText;
-  private TextView launchLog;
 
   /** 启动按钮当前是否处于「进入」态（鉴权链接已就绪）。 */
   private boolean webReady;
@@ -52,8 +51,6 @@ public class LaunchFragment extends Fragment {
   /** 本次启动开始时刻（显示耗时用）。 */
   private long startAtMs;
 
-  private long logRevision = -1;
-  private String logUrl = "";
   private final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
 
   /** 通知点击进来、待自动进入 Web 的意图；由既有每秒刷新循环消费，就绪即进。 */
@@ -92,11 +89,8 @@ public class LaunchFragment extends Fragment {
     Button restart = v.findViewById(R.id.launch_open);
     Button stop = v.findViewById(R.id.launch_stop);
     lanAddrText = v.findViewById(R.id.lan_addr);
-    launchLog = v.findViewById(R.id.launch_log);
-    logRevision = -1;
-    logUrl = "";
-    v.findViewById(R.id.launch_download_logs)
-        .setOnClickListener(x -> startActivity(DiagnosticActivity.downloadLogs(requireContext())));
+    v.findViewById(R.id.launch_logs)
+        .setOnClickListener(x -> startActivity(new Intent(requireContext(), StartupLogActivity.class)));
 
     v.findViewById(R.id.launch_models)
         .setOnClickListener(
@@ -189,7 +183,7 @@ public class LaunchFragment extends Fragment {
     return v;
   }
 
-  /** 启动 dsh：记录启动时刻，鉴权链接就绪后把「启动」变「进入」并输出 URL 到日志。 */
+  /** 启动 dsh：记录启动时刻，鉴权链接就绪后把「启动」变「进入」并可查看访问地址。 */
   private void doStart(Activity activity, TextView status, Button start) {
     doStart(activity, status, start, false);
   }
@@ -418,16 +412,6 @@ public class LaunchFragment extends Fragment {
     webEntryFailureUrl = "";
   }
 
-  /** 仅在用户仍位于底部时跟随；滚动日志本身，不请求焦点或移动操作区。 */
-  private void updateLog(String text) {
-    View root = getView();
-    if (root == null || launchLog == null) return;
-    LogScrollView scroll = root.findViewById(R.id.launch_log_scroll);
-    boolean follow = scroll.shouldFollowEnd();
-    launchLog.setText(text);
-    if (follow) scroll.followEndAfterLayout();
-  }
-
   @Override
   public void onResume() {
     super.onResume();
@@ -454,7 +438,6 @@ public class LaunchFragment extends Fragment {
     invalidateWebEntry();
     ui.removeCallbacks(refreshState);
     lanAddrText = null;
-    launchLog = null;
     super.onDestroyView();
   }
 
@@ -483,17 +466,6 @@ public class LaunchFragment extends Fragment {
       boolean ready = !starting && !stopping && !localUrl.isEmpty();
       com.deepseekharness.app.util.StartupTrace.Snapshot trace =
           controller.startupDiagnostics().snapshot();
-      if (launchLog != null && (trace.revision != logRevision || !localUrl.equals(logUrl))) {
-        // 仅原生本机视图显示当前鉴权地址；归档与导出的诊断仍统一脱敏。
-        updateLog(
-            (trace.log.isEmpty() ? com.deepseekharness.app.util.UiText.text("还没有日志。") : trace.log)
-                + (localUrl.isEmpty()
-                    ? ""
-                    : com.deepseekharness.app.util.UiText.format(
-                        "\n\n本机 Web 地址（可长按复制）：\n%s", localUrl)));
-        logRevision = trace.revision;
-        logUrl = localUrl;
-      }
       runState.setText(
           enteringWeb
               ? com.deepseekharness.app.util.UiText.text("正在鉴权并打开 Web…")
@@ -545,7 +517,7 @@ public class LaunchFragment extends Fragment {
                     trace.stageElapsedMs / 1000,
                     trace.elapsedMs / 1000,
                     trace.issues.isEmpty()
-                        ? com.deepseekharness.app.util.UiText.text("下方实时显示启动输出；等待不会自动终止。")
+                        ? com.deepseekharness.app.util.UiText.text("启动日志中可查看完整输出；等待不会自动终止。")
                         : com.deepseekharness.app.util.UiText.text("检测到插件或配置异常，可查看恢复选项。")));
       else if (!webEntryFailure.isEmpty())
         ((TextView) root.findViewById(R.id.launch_status))
