@@ -65,6 +65,7 @@ on:
       - tools/bxroot/**
       - app/src/main/assets/workspace-*.json
       - app/src/main/assets/destructive-policy/**
+      - app/src/main/assets/bxroot-native-lock.json
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
