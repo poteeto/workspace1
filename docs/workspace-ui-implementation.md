@@ -34,4 +34,4 @@
 
 真实 rc2 React/Primitives 组件回归通过：模型原目录搜索和回调、强度草稿取消/提交、写锁失败/重试、无推理/单档/提供方默认模型、长短模型和说明切换固定几何、短屏、大字体、日夜、减少动画，以及缓存/累计用量/活动详情和桌面回退。274 项原命令分类及16项历史绕过审批要求通过；新引擎证明、额外预加载拒绝、截图命令和真实宿主 rg 搜索通过。安装模拟全部9组通过（26条完整补丁链、88处替换，重复应用稳定）。
 
-Android APK、签名和 ARM64 运行测试由 GitHub 流水线执行，结果未完成前不能宣称通过；原 realme Android16 手机未验。v184 / 0.2.34 保留 v180 起固定签名，成功后按用户授权发布 GitHub prerelease。
+[完整流水线 40114939008](https://github.com/poteeto/workspace1/actions/runs/40114939008)已通过 Android APK、两版 JUnit/Release Lint、Chromium/Firefox、32项原生检查、同次 APK 的 ARM64 搜索和清理、Android 模拟器与固定签名。原 realme Android16 手机未验；网页获取的原始网络原因未确定。[产物身份和验收边界](releases/v0.2.34-build184-workspace.md)。

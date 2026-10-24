@@ -1,13 +1,13 @@
 {
-  "versionCode": 183,
-  "versionName": "0.2.33-20261023.2200-dsh0.2.1-rc.2",
-  "sha256": "e52a958bd926a1ac0f9c596ac74dbbe5658a2ba20c8b7e18a093abb92b89b73d",
-  "bytes": 298182289,
+  "bytes": 303118442,
+  "sha256": "09707f1e1e5b293ef862e298fbc0446b034d647fc11f3b1b56b796cb2e8a4d33",
   "certificateSha256": "c61f876e7dc688a52484b9a4da38040acc193ffec5f329b0511a32014367b601",
-  "applicationSource": "5d3741613704718f516e11a58904b5cb0542044f",
-  "fullPipelineRun": 39977822726,
-  "artifactId": 12513067563,
-  "signedArtifactSha256": "98a823f2a649d0427ef9c33b9e03fcd22f1877fcd04512b7f7c892224f3bfed8",
+  "signedArtifactSha256": "16b08ce01eec07c64bb884d804803c56969c05fb45c8743395d64e6d5fe240b2",
+  "versionCode": 184,
+  "versionName": "0.2.34-20261024.0000-dsh0.2.1-rc.2",
+  "applicationSource": "8396439484346c1d5426abc629d53c82e1cbc031",
+  "fullPipelineRun": 40114939008,
+  "artifactId": 12570525941,
   "checks": {
     "junit": {
       "standard": {
@@ -35,16 +35,23 @@
         "Warning": 166
       }
     },
-    "debugOnlyFixturesExcludedFromRelease": true,
-    "automaticPipOffByDefaultAndOptInSystemBehavior": "passed",
-    "separateStartupLogPageAndScroll": "passed",
-    "nativeLayoutsZhEnLightDarkShortScreenFont130Percent": "passed",
-    "threeActualAppProcessReopensAndNativeExitProtocol": "passed",
-    "fixedCertificateAndReleaseContent": "passed"
+    "bxrootOverlayCChecks": 32,
+    "realRc2WorkspaceUiChromiumAndFirefox": "passed",
+    "verifiedEnginePreloadAndReadOnlyCommandRegression": "passed",
+    "sameRunApkArm64OldRgFailureNewRgSearchAndAwaitedTeardown": "passed",
+    "reapedKnownProcessAndGroupZeroProbeKernelEsrchRealSignalEperm": "passed",
+    "nativeAndroidLayoutsPipLogsAndThreeReopens": "passed",
+    "fixedCertificateAndReleaseContent": "passed",
+    "packagedWorkspaceRecipesAndNativeHashes": "matched"
   },
   "limitations": [
     "Not tested on the user realme Android 16 phone.",
-    "PiP system test uses a static debug-only page in the real shared browser host, without a DSH backend.",
-    "Native layout tests render actual layouts; missing Ubuntu installation is bypassed. This is not full DSH conversation or device acceptance."
-  ]
+    "ARM64 Linux engine checks do not establish Android OEM compatibility.",
+    "Android 15 emulator PiP tests use a debug static page; native layout fixtures bypass missing Ubuntu. This is not full DSH conversation or original-device acceptance.",
+    "The original web-fetch failure remains undiagnosed. This build adds bounded underlying error codes, without claiming to repair an unknown network cause.",
+    "Only Standard is delivered; Low receives JVM and Release Lint checks, not device acceptance."
+  ],
+  "fullPipelineAttempt": 2,
+  "testReportsArtifactId": 12569616571,
+  "testReportsArtifactSha256": "554882e22857fb40a38a634fcb8d03caa30d64e0caf1f05df2d997c16923b75a"
 }

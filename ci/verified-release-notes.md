@@ -1,13 +1,16 @@
-默认不再自动弹小窗，首页不再展开启动日志。
+工作界面调整与文件搜索修复（Standard 验证版）。
 
-- “离开应用时自动进入小窗”默认关闭，旧版覆盖升级也默认关闭。需要时在“设置 → 运行与显示”主动开启，立即生效。
-- 首页点“启动日志”进入独立页面，支持实时查看、上翻阅读、下载，以及进入历史记录与诊断；安全启动、恢复和访问地址入口保留。
-- 保留 v182 普通关闭重开修复，继续使用 v180 起相同固定签名，可覆盖 v180–v182。
+- 模型选择保留原模型目录、搜索和保存流程。思考强度使用当前模型提供的档位，最高档有紫色像素动效；切换模型与说明时，面板和滑条位置稳定。
+- 缓存命中率、累计用量、活动与速度、上下文环全部可见，并分别保留详情。回复后的按钮和完成状态保留。
+- 修正软件把自身必需的运行组件误判成异常，连查看目录都被阻止的问题；额外未知组件、删除和覆盖等原有确认规则保留。
+- 手机文件搜索改用兼容的固定版本；同时修正搜索程序已退出、软件却一直等它结束的问题。
+- 网页获取失败增加具体原因错误码。现有截图不足以确认其网络原因，此项是诊断改善。
+- 保留普通关闭重开、自动小窗默认关闭和独立启动日志页，继续使用 v180 起固定签名。
 
-此为 Standard 非调试签名验证版。Android 模拟器检查使用静态 debug 页面测试真实小窗宿主，布局检查不安装 Ubuntu；尚未连接原 realme Android 16 手机，不声明真机或完整聊天验收。
+[本次完整构建、Android 检查、ARM64 搜索与固定签名](https://github.com/poteeto/workspace1/actions/runs/40114939008)全部通过。Standard / Low 各 1720 项单元检查，0 失败；Release Lint 无错误。
 
-附件：签名 APK、SHA256、verification.json。[检查结果、源码及验证范围](https://github.com/poteeto/workspace1/blob/upgrade/dsh-0.2.1-rc.2/docs/releases/v0.2.33-build183-ui.md)。
+此为 Standard 非调试签名验证版。未在原 realme Android 16 手机验收；ARM64 Linux 和 Android 模拟器检查不等于该手机完整使用验收。网页获取失败的原始网络原因仍未确定。
 
-[完整 GitHub 构建与签名](https://github.com/poteeto/workspace1/actions/runs/39977822726)通过。Standard / Low 各 1720 项单元检查，0 失败、各 3 项跳过；Release Lint 无错误。Android 小窗与日志 19 项行为、中英文页面及三轮重开检查通过。
+附件提供 APK、SHA256 和 verification.json。[源码与验证范围](https://github.com/poteeto/workspace1/blob/upgrade/dsh-0.2.1-rc.2/docs/releases/v0.2.34-build184-workspace.md)。
 
-安装包 SHA256：`e52a958bd926a1ac0f9c596ac74dbbe5658a2ba20c8b7e18a093abb92b89b73d`
+APK SHA256：`09707f1e1e5b293ef862e298fbc0446b034d647fc11f3b1b56b796cb2e8a4d33`
