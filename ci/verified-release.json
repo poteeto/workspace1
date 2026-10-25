@@ -1,16 +1,16 @@
 {
-  "bytes": 303118442,
-  "sha256": "0a1f66dadbd2d46ad57b2ead493857c883dec1a287ede066ea52215954a70d72",
+  "bytes": 303122710,
+  "sha256": "ebe8e6e3c775e18de74df00f5e456b6f2b2bf377b8c617120107cd5328b6089e",
   "certificateSha256": "c61f876e7dc688a52484b9a4da38040acc193ffec5f329b0511a32014367b601",
-  "signedArtifactSha256": "1eff43f26411ef3a5c68d6ed50989dd6e7d1ce265030280b4e588bfdb4bbe41f",
-  "versionCode": 185,
-  "versionName": "0.2.35-20261025.0300-dsh0.2.1-rc.2",
-  "applicationSource": "e202af56ecda9bfc85197b423a6726a7844c0ec6",
-  "fullPipelineRun": 40126238772,
+  "signedArtifactSha256": "4f8487a1bf5fc332a0340758baaa251a75e63af1a712bedc8237fbf92461b075",
+  "versionCode": 186,
+  "versionName": "0.2.36-20261025.1510-dsh0.2.1-rc.2",
+  "applicationSource": "9b960c6bc5c49a0e1384dfc3f917e215f16e7098",
+  "fullPipelineRun": 40175672648,
   "fullPipelineAttempt": 1,
-  "artifactId": 12573940281,
-  "testReportsArtifactId": 12573278804,
-  "testReportsArtifactSha256": "31150536d4a15e680fb464850d545d4d1151fb963ef0904152ac147a3882987e",
+  "artifactId": 12592202225,
+  "testReportsArtifactId": 12593120109,
+  "testReportsArtifactSha256": "94246066313851f5a6c955d757f75ed13e59618fe27596ea9242f0fd65c395c9",
   "checks": {
     "junit": {
       "standard": {
@@ -38,13 +38,13 @@
         "Warning": 166
       }
     },
-    "oldUnknownHistorySameBackendOverlayRegression": "passed",
-    "androidProductionAdmissionAndRealApkStagingAtomicActivation": "passed",
-    "originalUnknownBytesAndPersonalSentinelRetained": "passed",
-    "strictRestoreBarrierStillBlocks": "passed",
     "realRc2WorkspaceUiChromiumAndFirefox": "passed",
+    "fiveIndependentStatTilesAndVisibleEdgeAlignment": "passed",
+    "noEmptyStatisticTile": "passed",
+    "localActualDshWorkingPage320390430": "passed with local mock model",
+    "sameRunAndroidOverlayActivationAndThreeReopens": "passed",
+    "nativeAndroidLayoutsPipLogs": "passed",
     "sameRunApkArm64SearchAndAwaitedTeardown": "passed",
-    "nativeAndroidLayoutsPipLogsAndThreeReopens": "passed",
     "fixedCertificateAndReleaseContent": "passed",
     "packagedWorkspaceRecipesAndNativeHashes": "matched",
     "actualPreviousReleaseDescriptorPolicy": {
@@ -53,17 +53,17 @@
         181,
         182,
         183,
-        184
+        184,
+        185
       ],
-      "meaning": "Eligibility checked against actual released APK descriptors; not device upgrade acceptance"
-    },
-    "bxrootOverlayCChecks": 32
+      "meaning": "Actual APK descriptor eligibility, not original-phone upgrade acceptance"
+    }
   },
   "limitations": [
     "Not tested on the user realme Android 16 phone.",
-    "The Android upgrade fixture uses an isolated old installation descriptor and actual APK staging/atomic switch. Its health callback checks files; it does not establish full DSH/LLM conversation health or an actual old-APK-to-new-APK installation on the original phone.",
-    "Old unknown run records stay unknown; no process-exit or task-completion receipt is fabricated. Full backend changes, restore and rebuild retain their strict barriers.",
-    "ARM64 Linux checks do not establish Android OEM compatibility.",
+    "The local full-page UI test uses the actual DSH conversation and production module recipes with a local mock model; it does not test an external model or the original phone.",
+    "The Android upgrade fixture uses an isolated old installation descriptor and actual APK staging/atomic switch with file health checks, not full DSH/LLM health.",
+    "Old unknown run records remain unknown; no exit or task-completion receipt is fabricated.",
     "The original web-fetch network failure remains undiagnosed.",
     "Only Standard is delivered; Low receives JVM and Release Lint checks, not device acceptance."
   ]
