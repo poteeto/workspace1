@@ -137,6 +137,12 @@ try {
     assert.ok(Math.max(...columns.map(b=>b.y))-Math.min(...columns.map(b=>b.y))<1,'三个入口必须同一水平线');
     assert.ok(Math.abs((cache.x+cache.width/2-used.x-used.width/2)-(context.x+context.width/2-cache.x-cache.width/2))<1,'三个入口的中心距必须相等');
     assert.equal(await page.locator('[data-dsha-context-stat] svg circle').count(),2,'保留原上下文圆环');
+    const ink=await page.evaluate(()=>{
+      const box=selector=>document.querySelector(selector).getBoundingClientRect();
+      return {activityLeft:box('[data-composer-stat="activity"] svg').left,usageLeft:box('[data-composer-stat="usage"] svg').left,speedRight:box('[data-dsha-activity-label]>span:last-child').right,contextRight:box('[data-dsha-context-stat]>button>span:last-child').right};
+    });
+    assert.ok(Math.abs(ink.activityLeft-ink.usageLeft)<1,'必须对齐用户看到的轮次图标和累计用量图标，而非只对齐点击区域');
+    assert.ok(Math.abs(ink.speedRight-ink.contextRight)<1,'速度与上下文读数必须贴齐同一右边线');
   }
   if(process.env.DSHA_UI_SCREENSHOTS){
     const folder=path.resolve(process.env.DSHA_UI_SCREENSHOTS);fs.mkdirSync(folder,{recursive:true});
