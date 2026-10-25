@@ -139,10 +139,16 @@ try {
     assert.equal(await page.locator('[data-dsha-context-stat] svg circle').count(),2,'保留原上下文圆环');
     const ink=await page.evaluate(()=>{
       const box=selector=>document.querySelector(selector).getBoundingClientRect();
-      return {activityLeft:box('[data-composer-stat="activity"] svg').left,usageLeft:box('[data-composer-stat="usage"] svg').left,speedRight:box('[data-dsha-activity-label]>span:last-child').right,contextRight:box('[data-dsha-context-stat]>button>span:last-child').right};
+      const textRight=selector=>{const range=document.createRange();range.selectNodeContents(document.querySelector(selector));return range.getBoundingClientRect().right;};
+      return {activityLeft:box('[data-composer-stat="activity"] svg').left,usageLeft:box('[data-composer-stat="usage"] svg').left,speedRight:textRight('[data-dsha-activity-label]>span:last-child'),contextRight:textRight('[data-dsha-context-stat]>button>span:last-child')};
     });
     assert.ok(Math.abs(ink.activityLeft-ink.usageLeft)<1,'必须对齐用户看到的轮次图标和累计用量图标，而非只对齐点击区域');
     assert.ok(Math.abs(ink.speedRight-ink.contextRight)<1,'速度与上下文读数必须贴齐同一右边线');
+    const tiles=await page.locator('[data-dsha-activity-label]>span,[data-composer-stat="usage"]>button,[data-composer-stat="cache"]>button,[data-dsha-context-stat]>button').evaluateAll(es=>es.map(e=>({box:e.getBoundingClientRect().toJSON(),background:getComputedStyle(e).backgroundColor})));
+    assert.equal(tiles.length,5,'轮次/步骤、速度、总用量、缓存、上下文必须分别显示成五块');
+    assert.ok(tiles.every(tile=>tile.background!=='transparent' && tile.background!=='rgba(0, 0, 0, 0)'),'每个显示区必须有独立底色');
+    assert.ok(tiles[1].box.left-tiles[0].box.right>=4 && tiles[3].box.left-tiles[2].box.right>=4 && tiles[4].box.left-tiles[3].box.right>=4,'五块之间必须有真实间隔，不能画成两条整栏');
+    assert.ok(Math.abs(tiles[0].box.left-tiles[2].box.left)<1 && Math.abs(tiles[1].box.right-tiles[4].box.right)<1,'上下两排的外侧边线必须齐平');
   }
   if(process.env.DSHA_UI_SCREENSHOTS){
     const folder=path.resolve(process.env.DSHA_UI_SCREENSHOTS);fs.mkdirSync(folder,{recursive:true});
