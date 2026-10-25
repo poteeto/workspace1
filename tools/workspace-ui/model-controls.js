@@ -9,9 +9,9 @@ function DshaWorkspaceModelRoot({ modelLabel, providerLabel, modelNames, effortC
   const h = react.createElement;
   const zh = t("menu.model") === "模型";
   const copy = zh ? {
-    title: "模型与推理强度", effort: "推理强度", faster: "更快", smarter: "更深入", done: "完成", close: "关闭", defaults: "使用模型默认", unsupported: "此模型未提供可调节的思考强度。"
+    title: "模型与推理强度", effort: "推理强度", faster: "更快", smarter: "更深入", done: "完成", close: "关闭", defaults: "使用模型默认", selected: "已自选档位", defaultSelected: "模型默认", next: "后续请求使用此设置。", unsupported: "此模型未提供可调节的思考强度。"
   } : {
-    title: "Model and reasoning", effort: "Reasoning effort", faster: "Faster", smarter: "Smarter", done: "Done", close: "Close", defaults: "Use model default", unsupported: "This model does not advertise adjustable reasoning effort."
+    title: "Model and reasoning", effort: "Reasoning effort", faster: "Faster", smarter: "Smarter", done: "Done", close: "Close", defaults: "Use model default", selected: "Custom effort", defaultSelected: "Model default", next: "Used for subsequent requests.", unsupported: "This model does not advertise adjustable reasoning effort."
   };
   const selected = Math.max(0, effortChoices.findIndex(level => level.effort === effectiveEffort));
   const [draft, setDraft] = react.useState(selected);
@@ -57,7 +57,7 @@ function DshaWorkspaceModelRoot({ modelLabel, providerLabel, modelNames, effortC
     h("div", { className: "dsha-ws-heading" }, h("strong", null, copy.title), h("button", { type: "button", onClick: onClose, "aria-label": copy.close }, h(_deepseek_ai_dsh_client_ui_primitives.IconCloseOutlineRegular, { size: 18 }))),
     h("div", { className: "dsha-ws-model-body" },
       error ? h("div", { className: "dsha-ws-error", role: "alert" }, h("span", null, t("error.action", { message: error })), h("button", { type: "button", onClick: retry }, t("retry"))) : null,
-      h("span", { className: "dsha-ws-provider" }, providerLabel),
+      h("span", { className: "dsha-ws-provider" }, t("menu.model") + " · " + providerLabel),
       h("button", { type: "button", className: "dsha-ws-model-choice", disabled: busy, onClick: onModels }, slot(modelLabel, modelNames), h(_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutlineRegular, { size: 16 })),
       count ? h("div", { className: "dsha-ws-effort", "data-max": max },
         h("div", { className: "dsha-ws-effort-heading" }, h("span", null, copy.effort), h("span", { ref: valueRef, className: "dsha-ws-effort-value", "aria-live": "polite" }, level?.label)),
@@ -82,8 +82,10 @@ function DshaWorkspaceModelRoot({ modelLabel, providerLabel, modelNames, effortC
           })
         ),
         slot(description(level), Object.values(descriptions), "dsha-ws-description"),
-        effortChoices.some(item => item.effort === void 0) ? h("button", { type: "button", className: "dsha-ws-default", disabled: busy, onClick: () => setDraft(effortChoices.findIndex(item => item.effort === void 0)) }, copy.defaults) : null
-      ) : h("p", { className: "dsha-ws-description" }, copy.unsupported)
+        h("div", { className: "dsha-ws-default-row" }, h("span", null, level?.effort === void 0 ? copy.defaultSelected : copy.selected),
+          effortChoices.some(item => item.effort === void 0) ? h("button", { type: "button", className: "dsha-ws-default", disabled: busy, onClick: () => setDraft(effortChoices.findIndex(item => item.effort === void 0)) }, copy.defaults) : null)
+      ) : h("p", { className: "dsha-ws-description" }, copy.unsupported),
+      h("p", { className: "dsha-ws-note" }, copy.next)
     ),
     h("div", { className: "dsha-ws-model-footer" }, h("button", { type: "button", className: "dsha-ws-done", disabled: busy, onClick: () => level ? onEffort(level.effort) : onClose() }, busy ? h(_deepseek_ai_dsh_client_ui_primitives.StateDot, { state: "ongoing" }) : copy.done))
   );

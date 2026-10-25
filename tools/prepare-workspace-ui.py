@@ -68,6 +68,33 @@ def main():
         ('\t\t\t\t\t\t\tpane === "effort" &&', '\t\t\t\t\t\t\t!dshaUi && pane === "effort" &&'),
     ]
     recipe('workspace-model-ui-patch.json', model_module, original, pairs, args.write)
+    permission_module = '@deepseek-ai/dsh-client-ui-permission-presets/lib/client.js'
+    original = (args.modules / permission_module).read_text(encoding='utf-8')
+    # The catalog still owns values, selection and risk confirmation. Only the shipped
+    # guarded preset's conventional name is localized, on both current/default pickers.
+    pairs = [
+        ('function displayPermissionPreset(value, name, t) {', '''function displayPermissionPreset(value, name, t) {
+            // DSHA_WORKSPACE_PERMISSION_LABEL_V1
+            if (value === "custom" && (name === value || name === "Custom"))
+                return t?.("preset.workspaceWrite") === "工作区内修改" ? "自定义" : "Custom";
+            if (value === "guarded-full-access" && (name === value || name === "Guarded Full Access"))
+                return t?.("preset.workspaceWrite") === "工作区内修改" ? "保护式完全权限" : "Guarded Full Access";'''),
+        ('className: PermissionSelect_module_css_default.trigger,', 'className: PermissionSelect_module_css_default.trigger,\n                        "data-dsha-permission-trigger": true,'),
+        ('function optionDescription(option, t) {', '''function optionDescription(option, t) {
+            if (option.value === "guarded-full-access" && t("preset.workspaceWrite") === "工作区内修改"
+                && option.description === "Full file access; destructive or opaque agent commands and existing-file overwrites ask once.")
+                return "允许访问全部文件；涉及破坏性命令、不透明命令或覆盖已有文件时，会请求一次确认。";'''),
+    ]
+    recipe('workspace-permission-ui-patch.json', permission_module, original, pairs, args.write)
+    composer_module = '@deepseek-ai/dsh-client-ui-conversation/lib/client.js'
+    original = (args.modules / composer_module).read_text(encoding='utf-8')
+    recipe('workspace-composer-ui-patch.json', composer_module, original, [
+        ('className: ContextMeter_module_css_default.root,', 'className: ContextMeter_module_css_default.root,\n                "data-dsha-context-stat": true,'),
+        ('className: InputBar_module_css_default.row,', 'className: InputBar_module_css_default.row,\n                                "data-dsha-composer-toolbar": true,'),
+        ('className: clsx(ConversationRoot_module_css_default.header, blank && ConversationRoot_module_css_default.headerBlank, sessionId === void 0 && ConversationRoot_module_css_default.headerSessionless),', 'className: clsx(ConversationRoot_module_css_default.header, blank && ConversationRoot_module_css_default.headerBlank, sessionId === void 0 && ConversationRoot_module_css_default.headerSessionless),\n                "data-dsha-workspace-header": blank ? void 0 : true,'),
+        ('className: ConversationRoot_module_css_default.titleRow,', 'className: ConversationRoot_module_css_default.titleRow,\n                "data-dsha-workspace-title": true,'),
+        ('className: ConversationRoot_module_css_default.tabs,', 'className: ConversationRoot_module_css_default.tabs,\n                "data-dsha-workspace-tabs": true,'),
+    ], args.write)
     chat_module = '@deepseek-ai/dsh-client-ui-chat/lib/client.js'
     original = (args.modules / chat_module).read_text(encoding='utf-8')
     start = original.index('\t\tconst UsagePill = (0, react.memo)(function UsagePill(')

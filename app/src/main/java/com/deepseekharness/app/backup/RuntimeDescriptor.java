@@ -142,6 +142,8 @@ public final class RuntimeDescriptor {
             "ripgrep/rg.bin",
             "runtime-patches.json",
             "workspace-model-ui-patch.json",
+            "workspace-permission-ui-patch.json",
+            "workspace-composer-ui-patch.json",
             "workspace-search-runtime-patch.json",
             "workspace-stats-ui-patch.json",
             "workspace-web-errors-patch.json");

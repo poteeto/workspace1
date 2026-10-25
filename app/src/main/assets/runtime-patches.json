@@ -19,6 +19,19 @@
       ]
     },
     {
+      "asset": "workspace-permission-ui-patch.json",
+      "module": "@deepseek-ai/dsh-client-ui-permission-presets/lib/client.js",
+      "markers": [
+        "DSHA_WORKSPACE_PERMISSION_LABEL_V1",
+        "data-dsha-permission-trigger"
+      ]
+    },
+    {
+      "asset": "workspace-composer-ui-patch.json",
+      "module": "@deepseek-ai/dsh-client-ui-conversation/lib/client.js",
+      "markers": ["data-dsha-context-stat"]
+    },
+    {
       "asset": "workspace-web-errors-patch.json",
       "module": "@deepseek-ai/dsh-web-fetch-http/lib/index.js",
       "markers": [

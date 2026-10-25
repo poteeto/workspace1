@@ -48,6 +48,8 @@ public class RuntimeDescriptorTest {
     Map<String, Object> inputs = new LinkedHashMap<>(inputs('a'));
     inputs.put("workspace-model-ui-patch.json", "5".repeat(64));
     inputs.put("workspace-stats-ui-patch.json", "6".repeat(64));
+    inputs.put("workspace-permission-ui-patch.json", "8".repeat(64));
+    inputs.put("workspace-composer-ui-patch.json", "9".repeat(64));
     inputs.put("ripgrep/rg.bin", "7".repeat(64));
     next.put("inputs", inputs);
     identify(next);

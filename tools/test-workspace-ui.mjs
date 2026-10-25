@@ -8,9 +8,13 @@ const fixture=await browserFixture(runtime), {page}=fixture;
 const recipe=name=>JSON.parse(fs.readFileSync('app/src/main/assets/'+name,'utf8'));
 try {
   const frontend=path.join(runtime,'node_modules/@deepseek-ai/dsh-web-frontend/dist');
-  for(const match of fs.readFileSync(path.join(frontend,'index.html'),'utf8').matchAll(/href="\.\/(assets\/[^" ]+\.css)"/g)) await page.addStyleTag({content:fs.readFileSync(path.join(frontend,match[1]),'utf8')});
+  // Production loads both its index and vendor styles; omitting vendor loses menu/ring colors.
+  for(const file of fs.readdirSync(path.join(frontend,'assets')).filter(name=>name.endsWith('.css')).sort((a,b)=>Number(!a.startsWith('vendor-'))-Number(!b.startsWith('vendor-'))))
+    await page.addStyleTag({content:fs.readFileSync(path.join(frontend,'assets',file),'utf8')});
   await fixture.load('dsh-client-ui-model-selection',[recipe('workspace-model-ui-patch.json')],'module.exports.audit={ModelSelect};');
   await fixture.load('dsh-client-ui-chat',[recipe('workspace-stats-ui-patch.json')],'module.exports.audit={UsagePill,ActivityPill};');
+  await fixture.load('dsh-client-ui-conversation',[recipe('workspace-composer-ui-patch.json')],'module.exports.audit={ContextMeter};');
+  await fixture.load('dsh-client-ui-permission-presets',[recipe('workspace-permission-ui-patch.json')],'module.exports.audit={PermissionSelect,displayPermissionPreset,optionDescription,accessZh,accessEn};');
   await page.evaluate(()=>{
     window.__ModuleLoader__={load({factory}){factory(()=>({}));}};
   });
@@ -22,6 +26,17 @@ try {
     const R=auditModules.react.default||auditModules.react, D=auditModules['react-dom'].default||auditModules['react-dom'];
     const {ModelSelect}=auditExports['@deepseek-ai/dsh-client-ui-model-selection'].audit;
     const {UsagePill,ActivityPill}=auditExports['@deepseek-ai/dsh-client-ui-chat'].audit;
+    const {ContextMeter}=auditExports['@deepseek-ai/dsh-client-ui-conversation'].audit;
+    const {PermissionSelect,displayPermissionPreset,optionDescription,accessZh,accessEn}=auditExports['@deepseek-ai/dsh-client-ui-permission-presets'].audit;
+    window.permissionLocale='zh';window.permissionValue='guarded-full-access';window.permissionCalls=[];
+    const permissionT=(key,values={})=>((permissionLocale==='zh'?accessZh:accessEn)[key]??key).replace(/\{(\w+)\}/g,(_match,name)=>values[name]??'');
+    const guarded={value:'guarded-full-access',name:'guarded-full-access',description:'Full file access; destructive or opaque agent commands and existing-file overwrites ask once.'};
+    const catalog={options:[{value:'read-only',name:'read-only'},{value:'workspace-write',name:'workspace-write'},{value:'danger-full-access',name:'danger-full-access'},guarded]};
+    if(displayPermissionPreset(guarded.value,guarded.name,permissionT)!=='保护式完全权限')throw Error('GUARDED_LABEL_NOT_CHINESE');
+    if(displayPermissionPreset('custom','Custom',permissionT)!=='自定义')throw Error('CUSTOM_LABEL_NOT_CHINESE');
+    if(displayPermissionPreset(guarded.value,'My own policy',permissionT)!=='My own policy')throw Error('HOST_LABEL_OVERWRITTEN');
+    if(optionDescription({...guarded,description:'custom policy description'},permissionT)!=='custom policy description')throw Error('HOST_DESCRIPTION_OVERWRITTEN');
+    if(!optionDescription(guarded,permissionT).startsWith('允许访问全部文件'))throw Error('GUARDED_DESCRIPTION_NOT_CHINESE');
     window.calls=[]; window.listeners=new Set(); window.locked=false; window.rejectSave=false;
     const levels=ids=>ids.map(id=>({id,name:id[0].toUpperCase()+id.slice(1)}));
     window.snapshot={status:'ready',error:null,failures:[],pending:null,retainedEffort:undefined,current:{provider:'fixture',model:'short',reasoningEffort:'high'},groups:[{id:'fixture',name:'Fixture provider',models:[
@@ -32,19 +47,28 @@ try {
     ]}]};
     window.publish=changes=>{snapshot={...snapshot,...changes};listeners.forEach(fn=>fn());};
     const directory={getSnapshot:()=>snapshot,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn);}};
-    window.t=(key,v={})=>({'menu.model':'模型','menu.aria':'Model settings','retry':'重试','stats.counts':`${v.turns} 轮 ${v.steps} 步`,'stats.cacheHit':`缓存命中 ${v.percent}%`,'message.turnUsage.cacheHit':'缓存命中','message.turnUsage.count':`${v.count} tok`,'message.tokensPerSecond':`${v.tps} tok/s`}[key]??key);
+    window.t=(key,v={})=>({'menu.model':'模型','menu.aria':'Model settings','retry':'重试','stats.counts':`${v.turns} 轮 ${v.steps} 步`,'stats.cacheHit':`缓存命中 ${v.percent}%`,'number.thousand':`${v.value}K`,'number.million':`${v.value}M`,'message.turnUsage.cacheHit':'缓存命中','message.turnUsage.count':`${v.count} tok`,'message.tokensPerSecond':`${v.tps} tok/s`}[key]??key);
     const select=async selection=>{calls.push(selection);if(rejectSave)return {ok:false,error:{code:'session/writer-held',message:'fixture'}};publish({current:selection});return {ok:true};};
     const usage={uncachedInputTokens:2000,cacheReadTokens:8000,cacheWriteTokens:0,outputTokens:120};
     const stats={turns:12,steps:34,llmMs:4000,toolMs:500,ttftMs:800,ttftSteps:2,decodeMs:3000,decodeTokens:120};
-    const projection=key=>key==='tokenUsage'?usage:key==='sessionStats'?stats:undefined;
+    const projection=key=>key==='tokenUsage'?usage:key==='sessionStats'?stats:key==='contextPressure'?{projectedTokens:8600,contextWindow:1000000}:key==='contextBreakdown'?{systemTokens:1400,toolsTokens:6871,messageTokens:329}:key==='permissions'?{currentValue:permissionValue}:undefined;
     window.root=D.createRoot(document.getElementById('root'));
-    window.render=()=>root.render(R.createElement('div',{'data-mobile-nav':'frame'},R.createElement('div',{'data-phase':'active',style:{padding:16}},
+    window.render=()=>root.render(R.createElement('div',{'data-mobile-nav':'frame'},R.createElement('aside',{'data-pane':'sidebar','aria-hidden':true,hidden:true,inert:''}),R.createElement('main',{'data-phase':'active',style:{padding:16}},
+      R.createElement(PermissionSelect,{locked,select:async value=>{permissionCalls.push(value);permissionValue=value;render();return true;},usePermissionCatalog:pick=>pick({value:catalog}),useProjection:projection,t:permissionT}),
       R.createElement(ModelSelect,{locked,available:true,directory,load:()=>{},select,t,renderSlot:(_name,_props,{fallback})=>fallback}),
-      R.createElement('div',{'data-composer-dock':true,style:{marginTop:20}},R.createElement(ActivityPill,{useChat:pick=>pick({legacy:{nodes:[]}}),useProjection:projection,usePerformanceUsage:pick=>pick('full'),t}),R.createElement(UsagePill,{useProjection:projection,usePerformanceUsage:pick=>pick('full'),t}))
+      R.createElement('div',{'data-composer-dock':true,style:{marginTop:20}},R.createElement(ActivityPill,{useChat:pick=>pick({legacy:{nodes:[]}}),useProjection:projection,usePerformanceUsage:pick=>pick('full'),t}),R.createElement(UsagePill,{useProjection:projection,usePerformanceUsage:pick=>pick('full'),t}),R.createElement(ContextMeter,{useProjection:projection,t:(key,values={})=>key==='context.aria'?`上下文已用 ${values.percent}`:key==='context.used'?'上下文':key==='number.thousand'?`${values.value}K`:key==='number.million'?`${values.value}M`:key}))
     )));
     render();
   });
   const trigger=page.locator('[data-dsha-model-trigger]'), menu=page.locator('[data-dsha-model-menu]'), slider=page.getByRole('slider');
+  const permission=page.locator('[data-dsha-permission-trigger]');
+  assert.match(await permission.innerText(),/保护式完全权限/);
+  await permission.click();await page.getByText('完全权限',{exact:true}).click();
+  await page.getByRole('button',{name:'取消',exact:true}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>permissionCalls),[],'权限中文化不能绕过原完全权限确认');
+  await page.getByRole('button',{name:'取消',exact:true}).click();
+  await page.evaluate(()=>{permissionLocale='en';render();});await page.getByRole('button',{name:'Access mode, current: Guarded Full Access'}).waitFor();
+  await page.evaluate(()=>{permissionLocale='zh';render();});await permission.getByText('保护式完全权限',{exact:true}).waitFor();
   const geometry=()=>page.evaluate(()=>Object.fromEntries(['menu','range','footer'].map((name,i)=>{const e=document.querySelector(['[data-dsha-model-menu]','.dsha-ws-range','.dsha-ws-model-footer'][i]);const b=e.getBoundingClientRect();return[name,{x:b.x,y:b.y,w:b.width,h:b.height}];})));
   await trigger.click(); await slider.waitFor();
   const before=await geometry();
@@ -97,9 +121,33 @@ try {
   const cache=page.locator('[data-composer-stat="cache"] button'), usage=page.locator('[data-composer-stat="usage"] button');
   assert.match(await cache.innerText(),/80%/);await cache.click();await page.locator('[data-dsha-cache-detail]').waitFor();await page.keyboard.press('Escape');
   await usage.click();await page.locator('[data-session-stats-usage]').waitFor();await page.keyboard.press('Escape');
+  await page.locator('[data-dsha-context-stat]>button').click();
+  await page.getByRole('dialog').waitFor();
+  assert.match(await page.getByRole('dialog').innerText(),/8\.6K/,'上下文入口仍打开原用量与构成详情');
+  await page.keyboard.press('Escape');
   await page.locator('[data-composer-stat="activity"] button').click();await page.locator('[data-session-stats-details]').waitFor();await page.keyboard.press('Escape');
   const boxes=await page.locator('[data-composer-stat]').evaluateAll(es=>es.map(e=>({kind:e.dataset.composerStat,...e.getBoundingClientRect().toJSON()})));
   const u=boxes.find(b=>b.kind==='usage'),c=boxes.find(b=>b.kind==='cache');assert.ok(u.right<=c.left,'缓存和累计用量不能重叠');
+  for(const width of [320,390,430]){
+    await page.setViewportSize({width,height:844});
+    const columns=await page.locator('[data-composer-stat="usage"]>button,[data-composer-stat="cache"]>button,[data-dsha-context-stat]>button').evaluateAll(es=>es.map(e=>e.getBoundingClientRect().toJSON()));
+    assert.equal(columns.length,3,'必须检查真实的用量、缓存与上下文三个入口');
+    const [used,cache,context]=columns;
+    assert.ok(Math.max(...columns.map(b=>b.width))-Math.min(...columns.map(b=>b.width))<1,'三个入口必须等宽');
+    assert.ok(Math.max(...columns.map(b=>b.y))-Math.min(...columns.map(b=>b.y))<1,'三个入口必须同一水平线');
+    assert.ok(Math.abs((cache.x+cache.width/2-used.x-used.width/2)-(context.x+context.width/2-cache.x-cache.width/2))<1,'三个入口的中心距必须相等');
+    assert.equal(await page.locator('[data-dsha-context-stat] svg circle').count(),2,'保留原上下文圆环');
+  }
+  if(process.env.DSHA_UI_SCREENSHOTS){
+    const folder=path.resolve(process.env.DSHA_UI_SCREENSHOTS);fs.mkdirSync(folder,{recursive:true});
+    await page.setViewportSize({width:390,height:844});
+    await page.screenshot({path:path.join(folder,'real-controls-and-equal-stats.png')});
+    await trigger.click();await slider.focus();await page.keyboard.press('End');await page.waitForTimeout(400);
+    await menu.screenshot({path:path.join(folder,'real-model-panel.png')});
+    await page.getByRole('button',{name:'关闭',exact:true}).click();
+    await permission.click();await page.screenshot({path:path.join(folder,'real-permission-menu.png')});
+    await page.keyboard.press('Escape');
+  }
   await page.setViewportSize({width:1000,height:800});await trigger.waitFor({state:'detached'});assert.equal(await page.locator('[data-dsha-model-trigger]').count(),0,'桌面保留原模型组件');assert.equal(await page.locator('[data-composer-stat="cache"]').count(),0,'桌面保留原合并用量组件');
   assert.deepEqual(fixture.errors,[]);
   console.log('PASS real rc2 workspace UI: draft/cancel/save, catalog/search, supported levels/default, write lock/error/retry, stable geometry, short screens, stats/details, desktop fallback');
