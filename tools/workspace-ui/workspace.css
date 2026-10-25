@@ -62,8 +62,9 @@
   [data-mobile-nav="frame"] [data-phase] [data-composer-card] [class*="_row"]>[class*="_trailing"] {justify-content:flex-end!important;}
   [data-mobile-nav="frame"] [data-phase] [data-composer-card] [class*="_row"] [class*="_root"]:has(>[data-dsha-model-trigger]) {margin-left:auto!important;flex:none!important;width:auto!important;}
   [data-mobile-nav="frame"] [data-phase] [data-composer-card] [class*="_row"] [data-dsha-model-trigger] {width:64px!important;height:40px!important;padding:4px!important;gap:3px!important;}
-  [data-composer-dock] {display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));width:100%!important;max-width:var(--dsh-composer-card-max-width)!important;box-sizing:border-box;column-gap:0;row-gap:5px;align-items:center!important;min-height:73px;padding:4px 0 0!important;position:relative;isolation:isolate;}
-  [data-composer-dock]::after {content:"";grid-row:2;grid-column:1/-1;align-self:stretch;z-index:-1;pointer-events:none;border-radius:9px;background:var(--dsha-ws-soft);box-shadow:inset 0 0 0 1px var(--dsha-ws-line);}
+  [data-composer-dock] {display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));width:100%!important;max-width:var(--dsh-composer-card-max-width)!important;box-sizing:border-box;column-gap:0;row-gap:5px;align-items:center!important;min-height:0;padding:4px 0 0!important;position:relative;isolation:isolate;}
+  [data-composer-dock]::after {content:none;grid-row:2;grid-column:1/-1;align-self:stretch;z-index:-1;pointer-events:none;border-radius:9px;background:var(--dsha-ws-soft);box-shadow:inset 0 0 0 1px var(--dsha-ws-line);}
+  [data-composer-dock]:has([data-composer-stat="usage"],[data-composer-stat="cache"],[data-dsha-context-stat])::after {content:"";}
   [data-composer-dock]>:has([data-composer-stat]) {display:contents!important;}
   [data-composer-stat="activity"] {grid-row:1;grid-column:1/-1;min-width:0;width:100%;}
   [data-composer-stat="activity"]>button,[data-composer-stat="activity"]>span {width:100%;min-height:34px;box-sizing:border-box;padding:0 8px!important;border:0!important;border-radius:9px;background:var(--dsha-ws-soft);box-shadow:inset 0 0 0 1px var(--dsha-ws-line);}

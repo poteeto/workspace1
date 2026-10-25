@@ -155,6 +155,15 @@ try {
     await page.keyboard.press('Escape');
   }
   await page.setViewportSize({width:1000,height:800});await trigger.waitFor({state:'detached'});assert.equal(await page.locator('[data-dsha-model-trigger]').count(),0,'桌面保留原模型组件');assert.equal(await page.locator('[data-composer-stat="cache"]').count(),0,'桌面保留原合并用量组件');
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>{
+    const R=auditModules.react.default||auditModules.react;
+    const {ContextMeter}=auditExports['@deepseek-ai/dsh-client-ui-conversation'].audit;
+    root.render(R.createElement('div',{'data-composer-dock':true},R.createElement(ContextMeter,{useProjection:()=>undefined,t})));
+  });
+  await trigger.waitFor({state:'detached'});
+  const empty=await page.locator('[data-composer-dock]').evaluate(e=>({height:e.getBoundingClientRect().height,background:getComputedStyle(e,'::after').content}));
+  assert.ok(empty.height<=4 && empty.background==='none','尚无上下文或用量时，不能显示空白色块或预留整行高度');
   assert.deepEqual(fixture.errors,[]);
   console.log('PASS real rc2 workspace UI: draft/cancel/save, catalog/search, supported levels/default, write lock/error/retry, stable geometry, short screens, stats/details, desktop fallback');
 } finally {await fixture.close();}
