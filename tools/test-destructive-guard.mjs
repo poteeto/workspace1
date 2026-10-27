@@ -333,10 +333,15 @@ console.log('== 默认档位 ==');
   const presetFor = (value) => new Function('process', `return (${expression});`)({ env: value === undefined ? {} : { DSH_PERMISSION_MODE: value } });
   check(presetFor('read-only') === 'read-only', 'read-only 档位原样保留', presetFor('read-only'));
   check(presetFor('workspace-write') === 'workspace-write', 'workspace-write 档位原样保留', presetFor('workspace-write'));
-  check(presetFor('danger-full-access') === 'guarded-full-access', '显式全盘可写映射到"会问"的那一档', presetFor('danger-full-access'));
+  check(presetFor('danger-full-access') === 'danger-full-access', '显式完全权限映射到免审批档位', presetFor('danger-full-access'));
   check(presetFor(undefined) === 'workspace-write', '未设 DSH_PERMISSION_MODE 不得扩权到全盘可写', presetFor(undefined));
   check(presetFor('') === 'workspace-write', '空值不得扩权', presetFor(''));
   check(presetFor('default') === 'workspace-write', '非法档位不得扩权', presetFor('default'));
+  const approvalLine = patch.split('\n').find(row => row.trim().startsWith('policy: !!js'));
+  const approvalExpression = approvalLine.slice(approvalLine.indexOf('"') + 1, approvalLine.lastIndexOf('"'));
+  const approvalFor = value => new Function('process', `return (${approvalExpression});`)({env:{DSH_PERMISSION_MODE:value}});
+  check(approvalFor('danger-full-access') === 'never', '完全权限默认免审批');
+  for (const value of [undefined, '', 'invalid', 'read-only', 'workspace-write']) check(approvalFor(value) === 'ask', '其它默认值仍需审批: '+value);
   check(/guarded-full-access:[\s\S]*?approval: ask/.test(patch), 'guarded-full-access 档位必须是"全盘可写 + 会问"', 'approval 不是 ask');
 }
 

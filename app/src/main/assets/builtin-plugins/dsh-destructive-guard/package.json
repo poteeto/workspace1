@@ -1,6 +1,6 @@
 {
   "name": "dsh-destructive-guard",
-  "description": "DSHA builtin plugin: destructive container commands (rm and friends) always require an explicit user confirmation",
+  "description": "DSHA builtin plugin: destructive commands require confirmation except in full-access mode",
   "version": "0.1.0",
   "type": "module",
   "main": "lib/index.js",

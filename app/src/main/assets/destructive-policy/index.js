@@ -23,14 +23,26 @@ function check(record, exec) {
   if (record.environment && encoded(envFacts(process.env)) !== record.processEnvironment) fail('Process environment changed.');
   if (record.bashServices && ['shell','shellEnv','sandboxPolicy'].some(name => serviceIdentity(record.ctx.get(name)) !== record.bashServices[name])) fail('Bash execution services changed.');
 }
+// 完全权限只由当前会话的实际沙箱与审批策略共同决定，不借用进程默认值。
+function fullAccess(record, approval) {
+  return approval?.effectivePolicy(record.session) === 'never'
+    && record.ctx.get('sandboxPolicy')?.resolve({ session: record.session }).mode === 'danger-full-access';
+}
 function consumeLease(record, facts) {
   const approval = record.ctx.get('approval');
-  if (!record.lease || record.lease.facts !== facts || record.lease.consumed || serviceIdentity(approval) !== record.lease.approval || approval?.effectivePolicy(record.session) === 'never') fail('Matching one-time approval is missing.');
+  if (!record.lease || record.lease.facts !== facts || record.lease.consumed || serviceIdentity(approval) !== record.lease.approval) fail('Matching approval is missing.');
+  if (record.lease.fullAccess) {
+    if (serviceIdentity(record.ctx.get('sandboxPolicy')) !== record.lease.sandboxPolicy || !fullAccess(record, approval)) fail('Full access was revoked before dispatch.');
+  } else if (approval?.effectivePolicy(record.session) === 'never') fail('Matching one-time approval is missing.');
   record.lease.consumed=true;
 }
 async function approve(record, exec, reason, facts) {
   check(record, exec);
   const approval = record.ctx.get('approval');
+  if (fullAccess(record, approval)) {
+    record.lease = { facts, consumed: false, approval: serviceIdentity(approval), fullAccess: true, sandboxPolicy: serviceIdentity(record.ctx.get('sandboxPolicy')) };
+    return;
+  }
   if (!approval || !record.agent || typeof approval.request !== 'function' || approval.effectivePolicy(record.session) === 'never') fail('No usable one-time approval channel.');
   const response = await approval.request({ agent: record.agent, toolName: record.name, callId: record.callId, reason, displayReason: { en: reason, zh: '此调用可能删除或覆盖已有数据。' + reason }, signal: exec.signal });
   check(record, exec);

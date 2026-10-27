@@ -29,10 +29,11 @@ const original=fs.readFileSync(path.join(root,'tools/test-destructive-guard.mjs'
 const literal=original.slice(original.indexOf('const KNOWN_BYPASS = [')+'const KNOWN_BYPASS = '.length,original.indexOf('\n];',original.indexOf('const KNOWN_BYPASS = ['))+3);
 const bypasses=Function('return '+literal)();assert.equal(bypasses.length,16);
 let cases=0;
-async function harness(command,outcome='allowed-once',mutate,policyName='ask'){
+async function harness(command,outcome='allowed-once',mutate,policyName='ask',mode,environment={}){
  const ctx=new Context();ctx.provide('systemPrompt',{tools(){},context(){},getContextOrder(){return 10;},section(){}});
- let collects=0;ctx.provide('shellEnv',{collect(){collects++;return {};}});
+ let collects=0;ctx.provide('shellEnv',{collect(){collects++;return environment;}});
  const events=[{type:'turn/start',data:{}}],session={header:{cwd:'/root/work'},get seq(){return events.length;},eventAt(i){return events[i];},append(type,data){events.push({type,data});}};
+ if(mode)ctx.provide('sandboxPolicy',{resolve(){return {mode,workspaceRoot:session.header.cwd};}});
  const agent={session,ctx};const tools=new ToolRuntime(ctx);
  if(outcome!=='missing-service')new ApprovalService(ctx,{policy:policyName});
  let asks=0,bodies=0;const definition={name:'bash',description:'Memory counter only; no shell is started.',parameters:{},output:{schema:{type:'object'},render:()=>[{type:'text',text:'counter'}]},execute(args,exec){preparedEnvironment(exec);bodies++;return {};}};
@@ -49,6 +50,18 @@ for(const [command] of bypasses){
 }
 for(const command of ['pwd','ls /tmp','cat /tmp/log','printf "rm -rf /"','sed -n "1p" /tmp/log','git status','curl https://example.com']){const result=await harness(command);assert.equal(result.asks,0,command);assert.equal(result.bodies,1);}
 assert.equal((await harness('rm /tmp/fixture','allowed-once',undefined,'never')).bodies,0);
+// 完全权限免审批；never 自身不能放开其它档位，也不借用进程默认值。
+for(const command of ['rm /tmp/fixture', 'python -c "opaque()"', 'ls -a /root/.dsh 2>/dev/null || echo "no ~/.dsh"']){
+ const result=await harness(command,'allowed-once',undefined,'never','danger-full-access',{BASH_ENV:'/tmp/startup-hook'});
+ assert.equal(result.bodies,1,JSON.stringify(result));assert.equal(result.asks,0);
+}
+for(const mode of ['read-only','workspace-write']){
+ const result=await harness('rm /tmp/fixture','allowed-once',undefined,'never',mode);
+ assert.equal(result.bodies,0);assert.equal(result.asks,0);
+}
+const guarded=await harness('rm /tmp/fixture','allowed-once',undefined,'ask','danger-full-access');
+assert.equal(guarded.bodies,1);assert.equal(guarded.asks,1);
+
 assert.equal((await harness('rm /tmp/fixture','allowed-once',({session})=>{session.header.cwd='/changed';})).bodies,0);
 assert.equal((await harness('rm /tmp/fixture','allowed-once',({agent})=>{agent.session={header:{cwd:'/root/work'}};})).bodies,0);
 assert.equal((await harness('rm /tmp/fixture','allowed-once',({tools,dispose,definition})=>{dispose();tools.register({...definition,execute(){throw Error('replacement must not run');}});})).bodies,0);
@@ -72,27 +85,27 @@ for(const key of ['arguments','name']) {
 const {LocalFileSystem}=await import(pathToFileURL(path.join(modules,'@deepseek-ai/dsh-fs-local/lib/index.js')));
 const fsTools=await import(pathToFileURL(path.join(modules,'@deepseek-ai/dsh-tool-fs/lib/index.js')));
 const editor=await import(pathToFileURL(path.join(modules,'@deepseek-ai/dsh-tool-str-replace-editor/lib/index.js')));
-for(const outcome of ['allowed-once','rejected','cancelled','unavailable']){
- const ctx=new Context();ctx.provide('systemPrompt',{tools(){},context(){},getContextOrder(){return 10;},getSectionOrder(){return 10;},section(){}});const tools=new ToolRuntime(ctx);new ApprovalService(ctx,{policy:'ask'});new LocalFileSystem(ctx,{cwd:directory,diffBasisMaxBytes:1048576});
+for(const outcome of ['allowed-once','rejected','cancelled','unavailable','full-access','restricted-never']){
+ const ctx=new Context();ctx.provide('systemPrompt',{tools(){},context(){},getContextOrder(){return 10;},getSectionOrder(){return 10;},section(){}});const tools=new ToolRuntime(ctx);new ApprovalService(ctx,{policy:['full-access','restricted-never'].includes(outcome)?'never':'ask'});ctx.provide('sandboxPolicy',{resolve(){return {mode:outcome==='full-access'?'danger-full-access':'workspace-write',workspaceRoot:directory};}});new LocalFileSystem(ctx,{cwd:directory,diffBasisMaxBytes:1048576});
  fsTools.apply(ctx,{readLimit:2000,readMaxLineLength:2000,readMaxBytes:1048576,readStreamMinSize:1048576});editor.apply(ctx,{maxOutputChars:16000,description:'temporary editor'});
  const session={header:{cwd:directory},seq:1,eventAt(){return {type:'turn/start',data:{}}},append(){}};let asks=0;ctx.on('approval/request',async()=>{asks++;return outcome;});
  const call=(name,args)=>tools.execute({name,arguments:args,callId:'fs-'+cases++,agent:{ctx,session},signal:new AbortController().signal});
  const existing=path.join(directory,'file-'+outcome);fs.writeFileSync(existing,'original');
- let result=await call('write',{file_path:existing,content:'replacement'});assert.equal(result.isError===true,outcome!=='allowed-once');assert.equal(fs.readFileSync(existing,'utf8'),outcome==='allowed-once'?'replacement':'original');assert.equal(asks,1);
- const fresh=path.join(directory,'fresh-'+outcome);result=await call('write',{file_path:fresh,content:'fresh'});assert.equal(result.isError===true,false);assert.equal(asks,1);
- result=await call('edit',{file_path:existing,old_string:outcome==='allowed-once'?'replacement':'original',new_string:'edited'});assert.equal(result.isError===true,outcome!=='allowed-once');assert.equal(asks,2);
- result=await call('str_replace_editor',{command:'insert',path:existing,insert_line:0,new_str:'prefix'});assert.equal(result.isError===true,outcome!=='allowed-once');assert.equal(asks,3);await ctx.fiber.dispose();
+ let result=await call('write',{file_path:existing,content:'replacement'});assert.equal(result.isError===true,!['allowed-once','full-access'].includes(outcome));assert.equal(fs.readFileSync(existing,'utf8'),['allowed-once','full-access'].includes(outcome)?'replacement':'original');assert.equal(asks,['full-access','restricted-never'].includes(outcome)?0:1);
+ const fresh=path.join(directory,'fresh-'+outcome);result=await call('write',{file_path:fresh,content:'fresh'});assert.equal(result.isError===true,false);assert.equal(asks,['full-access','restricted-never'].includes(outcome)?0:1);
+ result=await call('edit',{file_path:existing,old_string:['allowed-once','full-access'].includes(outcome)?'replacement':'original',new_string:'edited'});assert.equal(result.isError===true,!['allowed-once','full-access'].includes(outcome));assert.equal(asks,['full-access','restricted-never'].includes(outcome)?0:2);
+ result=await call('str_replace_editor',{command:'insert',path:existing,insert_line:0,new_str:'prefix'});assert.equal(result.isError===true,!['allowed-once','full-access'].includes(outcome));assert.equal(asks,['full-access','restricted-never'].includes(outcome)?0:3);await ctx.fiber.dispose();
 }
 // The real bash body must consume exactly the collected environment. Executor is a memory seam.
 const actualBash=await import(pathToFileURL(path.join(modules,'@deepseek-ai/dsh-tool-bash/lib/index.js')));
-for(const outcome of ['allowed-once','rejected']){
- const ctx=new Context();ctx.provide('systemPrompt',{tools(){},context(){},getContextOrder(){return 10;},getSectionOrder(){return 10;},section(){}});new ToolRuntime(ctx);new ApprovalService(ctx,{policy:'ask'});
+for(const outcome of ['allowed-once','rejected','full-access']){
+ const ctx=new Context();ctx.provide('systemPrompt',{tools(){},context(){},getContextOrder(){return 10;},getSectionOrder(){return 10;},section(){}});new ToolRuntime(ctx);new ApprovalService(ctx,{policy:outcome==='full-access'?'never':'ask'});ctx.provide('sandboxPolicy',{resolve(){return {mode:'danger-full-access',workspaceRoot:'/root/work'};}});
  let collects=0,bodies=0,asks=0;ctx.provide('shellEnv',{collect(){collects++;return {DSH_GUARD_FIXTURE:'frozen'};}});
  ctx.provide('shell',{resolve(request){assert.equal(request.command,'python -c "opaque()"');assert.equal(request.workdir,'/root/work');assert.deepEqual(request.dshEnv,{DSH_GUARD_FIXTURE:'frozen'});return request;},async execute(){bodies++;return {result:async()=>({exitCode:0,signal:null,timedOut:false,aborted:false,timeoutMs:30000,stdout:{text:'',truncated:false},stderr:{text:'',truncated:false}})}}});
  actualBash.apply(ctx,{enableRunInBackground:false,promoteOnTimeout:false});ctx.on('approval/request',async()=>{asks++;return outcome;});
  const session={header:{cwd:'/root/work'},seq:1,eventAt(){return {type:'turn/start',data:{}}},append(){}};
  const result=await ctx.tools.execute({name:'bash',arguments:{command:'python -c "opaque()"',description:'counter-only opaque fixture'},callId:'actual-bash-'+cases++,agent:{ctx,session},signal:new AbortController().signal});
- assert.equal(bodies,outcome==='allowed-once'?1:0,JSON.stringify(result));assert.equal(asks,1);assert.equal(collects,1);await ctx.fiber.dispose();
+ assert.equal(bodies,outcome!=='rejected'?1:0,JSON.stringify(result));assert.equal(asks,outcome==='full-access'?0:1);assert.equal(collects,1);await ctx.fiber.dispose();
 }
 // Invoke the real run_code transport's bindings through its real scheduler; language runtime is a memory seam.
 for(const outcome of ['allowed-once','rejected','cancelled','unavailable']){
@@ -111,5 +124,20 @@ for(const name of ['write','edit','str_replace_editor']){
  const session={header:{cwd:directory},seq:1,eventAt(){return {type:'turn/start',data:{}}},append(){}};
  const args=name==='write'?{file_path:file,content:'replacement'}:name==='edit'?{file_path:file,old_string:'original',new_string:'replacement'}:{command:'insert',path:file,insert_line:0,new_str:'replacement'};
  const result=await ctx.tools.execute({name,arguments:args,callId:'race-'+cases++,agent:{ctx,session},signal:new AbortController().signal});assert(result.isError);assert.equal(asks,1);assert.equal(fs.readFileSync(file,'utf8'),'concurrent-writer');await ctx.fiber.dispose();
+}
+// 免审批许可在最终分派前仍检查当前会话，切换权限或取消后不能继续使用。
+const policyApi=await import(pathToFileURL(path.join(policy,'index.js')));
+for(const revoke of ['sandbox','approval','cancel']){
+ let mode='danger-full-access',approval='never';const controller=new AbortController();
+ const session={header:{cwd:directory}},ctx=new Context();
+ ctx.provide('shellEnv',{collect(){return {};}});
+ ctx.provide('sandboxPolicy',{resolve(){return {mode,workspaceRoot:directory};}});
+ ctx.provide('approval',{effectivePolicy(){return approval;}});
+ const runtime={ctx},tool={execute(){}},exec={name:'bash',arguments:{command:'python -c "opaque()"'},agent:{ctx,session},signal:controller.signal};
+ ctx.provide('tools',runtime);policyApi.attachPolicy(runtime,ctx);policyApi.captureExecution(runtime,exec,tool);
+ await policyApi.prepareOperation(runtime,exec);
+ if(revoke==='sandbox')mode='workspace-write';else if(revoke==='approval')approval='ask';else controller.abort();
+ assert.throws(()=>policyApi.verifyDispatch(runtime,exec,tool),/DSHA_DESTRUCTIVE_BLOCKED/);
+ await ctx.fiber.dispose();cases++;
 }
 console.log(JSON.stringify({status:'PASS',cases,historicalBypasses:bypasses.length,mandatoryProfileIndependent:true,ordinaryReadonlyNoPrompt:true,realRc2:true,temporaryFilesystem:true,fixture:directory}));
