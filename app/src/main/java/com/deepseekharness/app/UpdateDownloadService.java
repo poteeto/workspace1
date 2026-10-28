@@ -51,6 +51,12 @@ public final class UpdateDownloadService extends Service {
     try {
       // 即使重投递的是取消动作，也先满足 startForegroundService 的时限契约。
       startForeground(ID, notification(engine.state().getValue()));
+      if (!com.deepseekharness.app.util.UpdatePolicy.appUpdateEnabled()) {
+        engine.cancel();
+        stopForeground(true);
+        stopSelf();
+        return START_NOT_STICKY;
+      }
       if (intent != null && CANCEL.equals(intent.getAction())) {
         engine.cancel();
         if (!observing) {

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "dshVersion": "0.2.1-rc.2",
+  "module": "@deepseek-ai/dsh-client-ui-permission-presets/lib/client.js",
+  "sourceSha256": "0c5d7757b657615b3f34a5712d73e30af6726e5fb48d5947881533e6fdbdfcdd",
+  "patches": [
+    {
+      "before": "function displayPermissionPreset(value, name, t) {",
+      "after": "function displayPermissionPreset(value, name, t) {\n            // DSHA_WORKSPACE_PERMISSION_LABEL_V1\n            if (value === \"custom\" && (name === value || name === \"Custom\"))\n                return t?.(\"preset.workspaceWrite\") === \"工作区内修改\" ? \"自定义\" : \"Custom\";\n            if (value === \"guarded-full-access\" && (name === value || name === \"Guarded Full Access\"))\n                return t?.(\"preset.workspaceWrite\") === \"工作区内修改\" ? \"保护式完全权限\" : \"Guarded Full Access\";"
+    },
+    {
+      "before": "className: PermissionSelect_module_css_default.trigger,",
+      "after": "className: PermissionSelect_module_css_default.trigger,\n                        \"data-dsha-permission-trigger\": true,"
+    },
+    {
+      "before": "function optionDescription(option, t) {",
+      "after": "function optionDescription(option, t) {\n            if (option.value === \"guarded-full-access\" && t(\"preset.workspaceWrite\") === \"工作区内修改\"\n                && option.description === \"Full file access; destructive or opaque agent commands and existing-file overwrites ask once.\")\n                return \"允许访问全部文件；涉及破坏性命令、不透明命令或覆盖已有文件时，会请求一次确认。\";"
+    }
+  ]
+}

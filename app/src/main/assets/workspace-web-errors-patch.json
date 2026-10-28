@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "dshVersion": "0.2.1-rc.2",
+  "module": "@deepseek-ai/dsh-web-fetch-http/lib/index.js",
+  "sourceSha256": "489fef91b0c11c063029ea7aed27b312817570b9c3177aeaa44983b9a25aedcd",
+  "patches": [
+    {
+      "before": "function translateAbortOrNetwork(error, signal) {",
+      "after": "// DSHA_TOOL_FAILURE_CODES_V1：只显示受限错误码，不复制 URL、请求头或环境值。\nfunction dshaFailureCodes(error) {\n    const seen=new Set(), codes=new Set();\n    function visit(value, depth) {\n        if (!value || typeof value!==\"object\" || seen.has(value) || depth>4 || seen.size>=16) return;\n        seen.add(value);\n        if (typeof value.code===\"string\" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value.code)) codes.add(value.code);\n        visit(value.cause, depth+1);\n        if (Array.isArray(value.errors)) for (const child of value.errors.slice(0,8)) visit(child,depth+1);\n    }\n    visit(error,0);\n    return codes.size ? ` [${[...codes].join(\", \")}]` : \"\";\n}\nfunction translateAbortOrNetwork(error, signal) {"
+    },
+    {
+      "before": "`web fetch failed: ${String(error)}`",
+      "after": "`web fetch failed: ${String(error)}${dshaFailureCodes(error)}`"
+    }
+  ]
+}

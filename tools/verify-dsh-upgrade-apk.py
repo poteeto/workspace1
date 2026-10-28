@@ -120,6 +120,13 @@ def verify(path):
             PREFIX + '/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js': b'DSHA_CLAIM_DECOR_OVERFLOW_STYLE_V1',
             PREFIX + '/node_modules/dsha-client-combo-cache/index.js': b'createComboCache',
         }
+        # 0.2.1-rc.2 moved away from the former TOKEN_STYLE claim transform.
+        # Keep a concrete package version check rather than requiring an
+        # obsolete injected guard marker that is intentionally absent.
+        if dsh_version == '0.2.1-rc.2':
+            wanted.pop(PREFIX + '/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js')
+            wanted[PREFIX + '/node_modules/@deepseek-ai/dsh-client-ui-conversation/package.json'] = (
+                '"version": "' + dsh_version + '"').encode()
         # 新增预览、文件交付和反馈模块必须与锁定官方包逐字节一致，不能被旧适配覆盖。
         untouched = {}
         runtime = verified_runtime('raw',os.environ.get('DSHA_TEST_RUNTIME')) / 'node_modules'

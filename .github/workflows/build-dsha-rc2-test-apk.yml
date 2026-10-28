@@ -1,0 +1,483 @@
+name: Build isolated DSHA rc2 Android test APK
+concurrency:
+  group: dsha-rc2-build-${{ github.ref }}
+  cancel-in-progress: true
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths:
+      - .github/workflows/build-dsha-rc2-test-apk.yml
+      - app/build.gradle
+      - app/src/main/res/**
+      - app/src/main/AndroidManifest.xml
+      - app/src/main/java/com/deepseekharness/app/core/ConfigStore.java
+      - app/src/debug/java/com/deepseekharness/app/core/**
+      - tools/i18n/messages.json
+      - app/src/main/java/com/deepseekharness/app/ui/**
+      - app/src/main/java/com/deepseekharness/app/core/UpdateEngine.java
+      - app/src/main/java/com/deepseekharness/app/core/UpdateRepository.java
+      - app/src/main/java/com/deepseekharness/app/UpdateDownloadService.java
+      - app/src/main/java/com/deepseekharness/app/util/UpdatePolicy.java
+      - app/src/main/java/com/deepseekharness/app/util/Constants.java
+      - app/src/main/java/com/deepseekharness/app/util/AdbWheelPaths.java
+      - app/src/main/java/com/deepseekharness/app/util/ColdInstallPlan.java
+      - app/src/main/java/com/deepseekharness/app/util/LanSettingsCompatibility.java
+      - app/src/main/java/com/deepseekharness/app/runtime/**
+      - app/src/main/java/com/deepseekharness/app/recovery/**
+      - app/src/debug/java/com/deepseekharness/app/ui/**
+      - app/src/androidTest/java/com/deepseekharness/app/runtime/**
+      - app/src/androidTest/java/com/deepseekharness/app/core/**
+      - app/src/test/java/**
+      - tools/verify-runtime-installation.py
+      - tools/verify-runtime-archive.py
+      - tools/verify-managed-runtime-syntax.py
+      - tools/verify-apk-runtime-contract.py
+      - tools/verify-cold-runtime-qualification.py
+      - app/src/main/assets/runtime-patches.json
+      - tools/report-apk-size.py
+      - tools/verify-monochrome-ui.py
+      - tools/ci-install-ndk.sh
+      - tools/native-session/session-launcher.c
+      - tools/test-native-session-durable-proof.py
+      - tools/ci-github-sign-release.sh
+      - tools/github-signing-state.py
+      - tools/test-github-signing-state.py
+      - ci/release-identity.json
+      - app/src/main/java/com/deepseekharness/app/core/BackupTask.java
+      - app/src/main/java/com/deepseekharness/app/core/EnvironmentAccess.java
+      - app/src/main/java/com/deepseekharness/app/backup/HostMaintenancePending.java
+      - app/src/debug/java/com/deepseekharness/app/runtime/**
+      - app/src/debug/AndroidManifest.xml
+      - tools/android-kvm-bridge-test.sh
+      - app/src/main/java/com/deepseekharness/app/core/ErrorLogRepository.java
+      - tools/ci-restore-upstream-base.py
+      - tools/recovery_runtime_overlay.py
+      - tools/prepare-recovery-assets.py
+      - tools/recovery-runtime/legacy-patches/**
+      - tools/workspace-ui/**
+      - tools/prepare-workspace-*.py
+      - tools/test-workspace-*.mjs
+      - tools/prepare-android-ripgrep.py
+      - tools/android-ripgrep.lock.json
+      - tools/asset-deployment.json
+      - tools/browser-tests/**
+      - tools/test-bxroot-workspace.py
+      - tools/bxroot/**
+      - app/src/main/assets/workspace-*.json
+      - app/src/main/assets/destructive-policy/**
+      - app/src/main/assets/bxroot-native-lock.json
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  test-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check cold-install capability qualification is correctly sequenced
+        run: python3 tools/verify-cold-runtime-qualification.py
+      - name: Prove disconnect recovery on real Linux kernel
+        run: python3 tools/test-native-session-durable-proof.py -v
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - name: Install pinned Java 17, Android SDK, and gcc-arm64
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Prepare source-pinned toolchains
+        shell: bash
+        run: |
+          set -euo pipefail
+          platform=$(python3 tools/ci-toolchain.py --field androidPlatform)
+          buildtools=$(python3 tools/ci-toolchain.py --field buildTools)
+          ndk=$(python3 tools/ci-toolchain.py --field ndk)
+          timeout --kill-after=10s 300s sdkmanager "platforms;$platform" "build-tools;$buildtools"
+          bash tools/ci-install-ndk.sh
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-13-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-dev-arm64-cross
+      - name: Restore immutable baseline Ubuntu assets from checksum-verified official APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://github.com/DSH-APP/DSHA/releases/download/v0.2.0-rc2/dsha-0.2.0-rc2.apk'
+          curl -fLsS --retry 2 "$url" -o "$RUNNER_TEMP/upstream-rc2.apk"
+          python3 tools/ci-restore-upstream-base.py "$RUNNER_TEMP/upstream-rc2.apk"
+      - name: Rebuild source-locked native bxroot executables
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request
+          from pathlib import Path
+          lock=json.loads(Path('tools/bxroot/lock.json').read_text())
+          urllib.request.urlretrieve(lock['source']['archiveUrl'],os.environ['RUNNER_TEMP']+'/bxroot-source.tar.gz')
+          PY
+          export BXROOT_TEST_SOURCE_ARCHIVE="$RUNNER_TEMP/bxroot-source.tar.gz"
+          python3 tools/bxroot/test-overlay.py -v
+          python3 -B tools/bxroot/build.py --prepare-source "$RUNNER_TEMP/bxroot-src" --source-archive "$BXROOT_TEST_SOURCE_ARCHIVE"
+          (cd "$RUNNER_TEMP/bxroot-src" && BXROOT_OUTPUT="$RUNNER_TEMP/bxroot-bin" sh "$GITHUB_WORKSPACE/tools/bxroot/build-linux.sh")
+          cp "$RUNNER_TEMP/bxroot-bin/"libbxroot*.so app/src/main/jniLibs/arm64-v8a/
+          python3 -B tools/bxroot/build.py --check
+      - name: Install upgraded DSH dependencies for real target Linux ARM64
+        shell: bash
+        working-directory: tools/dsh-runtime
+        run: npm ci --os=linux --cpu=arm64 --libc=glibc --ignore-scripts --no-audit --no-fund
+      - name: Prepare signature-index-pinned glibc Android search tool
+        run: python3 tools/prepare-android-ripgrep.py
+      - name: Check reproducible workspace UI and environment recipes
+        run: |
+          python3 tools/prepare-workspace-ui.py
+          python3 tools/prepare-workspace-environment.py
+          python3 tools/prepare-destructive-policy.py --check
+          node tools/test-destructive-guard.mjs
+          DSHA_TEST_RUNTIME=tools/dsh-runtime node tools/test-workspace-environment.mjs --diagnostics-only
+      - name: Verify actual rc2 workspace components in Chromium and Firefox
+        env:
+          DSHA_TEST_RUNTIME: tools/dsh-runtime
+          DSHA_PLAYWRIGHT: ${{ github.workspace }}/tools/browser-tests/node_modules/playwright
+        run: |
+          npm ci --prefix tools/browser-tests --ignore-scripts --no-audit --no-fund
+          node tools/browser-tests/node_modules/playwright/cli.js install --with-deps chromium firefox
+          node tools/test-workspace-ui.mjs
+          DSHA_BROWSER=firefox node tools/test-workspace-ui.mjs
+      - name: Materialize DSH 0.2.1-rc.2 immutable offline runtime
+        run: |
+          python3 tools/audit-dsh-patches.py
+          python3 tools/audit-dsh-pdf.py
+          python3 tools/build-dsh-runtime.py \
+            --source tools/dsh-runtime/node_modules \
+            --output app/src/main/assets/dsh-runtime.bin
+      # The checked-in arm64 ELF is a historical binary. Always rebuild from the
+      # CURRENT session-launcher.c before Gradle packages any Android APK.
+      # A stale ELF can emit DSHA_SESSION_STAT_V1 but cannot speak V2 READY/ECHILD.
+      - name: Rebuild reproducible Android owned-tree supervisor from current C
+        shell: bash
+        run: |
+          set -euo pipefail
+          ndk="$(python3 tools/ci-toolchain.py --field ndk)"
+          target="app/src/main/jniLibs/arm64-v8a/libdsha-session.so"
+          python3 tools/native-session/build.py --ndk "$ANDROID_HOME/ndk/$ndk" --output "$target"
+          python3 tools/native-session/build.py --ndk "$ANDROID_HOME/ndk/$ndk" --check
+          python3 - <<'PY'
+          from pathlib import Path
+          binary=Path('app/src/main/jniLibs/arm64-v8a/libdsha-session.so').read_bytes()
+          required=(b'DSHA_SESSION_STAT_V1',b'READY DSHA_OWNED_TREE_V2',
+                    b'OWNED_TREE_EMPTY ECHILD',b'COMMAND_EXITED',b'NO_GUEST')
+          missing=[part.decode() for part in required if part not in binary]
+          if missing:raise SystemExit('ANDROID_SIGNED_SUPERVISOR_PROTOCOL_MISSING:'+repr(missing))
+          print('SIGNED_NATIVE_V2_PROTOCOL_REBUILT_FROM_SOURCE',len(binary))
+          PY
+      - name: Refresh provenance for target-specific packages without weakening policy
+        run: |
+          python3 tools/pc-migration/prepare-assets.py --output app/src/main/assets
+          python3 tools/prepare-backup-assets.py --write
+          python3 tools/generate-third-party-notices.py
+          python3 tools/prepare-runtime-descriptor.py --write
+          python3 tools/prepare-runtime-descriptor.py --check
+      - name: Syntax-validate every signed generated Android runtime asset
+        run: python3 tools/verify-managed-runtime-syntax.py
+      - name: Gate release on entire Android runtime postinstall patch simulation
+        run: python3 tools/verify-runtime-installation.py
+      - name: Validate shipped DSH gzip tar against actual Android installer patch order
+        run: python3 tools/verify-runtime-archive.py app/src/main/assets/dsh-runtime.bin
+      - name: Enforce Android and DSH patch registry version alignment
+        run: |
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          target = json.loads(Path("tools/dsh-runtime/package.json").read_text())["dependencies"]["@deepseek-ai/dsh"]
+          registry = json.loads(Path("app/src/main/assets/runtime-patches.json").read_text())
+          source = Path("app/src/main/java/com/deepseekharness/app/util/Constants.java").read_text()
+          found = re.search(r'DSH_VERSION\s*=\s*"([^"]+)"', source)
+          if not found or found.group(1) != target or registry["dshVersion"] != target:
+              raise SystemExit("ANDROID_DSH_REGISTRY_VERSION_MISMATCH: " + repr((found.group(1) if found else None, registry["dshVersion"], target)))
+          for entry in registry["active"]:
+              name = entry["asset"]
+              spec = json.loads((Path("app/src/main/assets") / name).read_text())
+              if spec.get("dshVersion") != target:
+                  raise SystemExit("ACTIVE_PATCH_VERSION_MISMATCH: " + name)
+          print("ANDROID_PATCH_REGISTRY_VERSION_OK", target)
+          PY
+      - name: Check unified light/dark monochrome native UI and version pins
+        run: python3 tools/verify-monochrome-ui.py
+      - name: Build fully bundled Standard debug APK
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleStandardDebug --no-daemon --max-workers=2
+      - name: Verify both Android editions compile and JUnit regressions pass
+        shell: bash
+        run: |
+          ./gradlew :app:compileLowDebugJavaWithJavac \
+            :app:testStandardDebugUnitTest :app:testLowDebugUnitTest \
+            --no-daemon --max-workers=2
+      - name: Compile non-debug release variants without access to publishing secrets
+        shell: bash
+        run: |
+          ./gradlew :app:compileStandardReleaseJavaWithJavac \
+            :app:compileLowReleaseJavaWithJavac \
+            -Pdsha.unsignedPackage=true --no-daemon --max-workers=2
+          echo 'Release Java compilations only; unsigned output is NOT a formal APK.'
+      - name: Lint both non-debug release editions
+        run: ./gradlew :app:lintStandardRelease :app:lintLowRelease -Pdsha.unsignedPackage=true --no-daemon --max-workers=2
+      - name: Preserve unit-test and release-lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSHA-v186-UNIT-AND-LINT-REPORTS
+          path: |
+            app/build/test-results/
+            app/build/reports/lint-results-*.xml
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Package Standard non-debug Release candidate (signing happens after emulator verification)
+        shell: bash
+        run: |
+          ./gradlew :app:assembleStandardRelease -Pdsha.unsignedPackage=true --no-daemon --max-workers=2
+      - name: Verify actual non-debug release package identity and complete runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/standard/release/app-standard-release-unsigned.apk
+          test -s "$apk"
+          aapt="$ANDROID_HOME/build-tools/$(python3 tools/ci-toolchain.py --field buildTools)/aapt"
+          "$aapt" dump badging "$apk" > "$RUNNER_TEMP/release-badging.txt"
+          grep -F "package: name='com.dsh.client' versionCode='186' versionName='0.2.36-20261025.1510-dsh0.2.1-rc.2'" "$RUNNER_TEMP/release-badging.txt"
+          if grep -q 'application-debuggable' "$RUNNER_TEMP/release-badging.txt"; then
+            echo "Non-debug release is debuggable; stop." >&2
+            exit 1
+          fi
+          python3 tools/verify-apk-runtime-contract.py "$apk"
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,zipfile
+          apk=Path('app/build/outputs/apk/standard/release/app-standard-release-unsigned.apk')
+          with zipfile.ZipFile(apk) as archive:
+              assert archive.testzip() is None
+              assert 'assets/dsh-runtime.bin' in archive.namelist()
+              assert 'assets/offline-rootfs.bin' in archive.namelist()
+          print('RELEASE_CANDIDATE_CHECKED_UNSIGNED_NOT_INSTALLABLE',apk.stat().st_size,hashlib.sha256(apk.read_bytes()).hexdigest())
+          PY
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: DSHA-v186-STANDARD-UNSIGNED-RELEASE-CANDIDATE
+          path: app/build/outputs/apk/standard/release/app-standard-release-unsigned.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+      - name: Assemble standalone Android kernel-peer instrumentation
+        shell: bash
+        run: |
+          ./gradlew :app:assembleStandardDebugAndroidTest --no-daemon --max-workers=2 \
+            -Pdsha.testRunner=com.deepseekharness.app.runtime.OwnedBirthAndroidInstrumentation
+      - name: Verify test APK DSH version and launch assets
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import zipfile,hashlib,json
+          from pathlib import Path
+          apks=list(Path('app/build/outputs/apk/standard/debug').glob('*.apk'))
+          if len(apks)!=1:raise SystemExit('EXPECTED_ONE_COMPLETE_DEBUG_APK')
+          apk=apks[0]
+          with zipfile.ZipFile(apk) as z:
+            a={i.filename for i in z.infolist()}
+            if 'assets/dsh-runtime.bin' not in a or 'assets/offline-rootfs.bin' not in a:
+              raise SystemExit('APK_MISSING_OFFLINE_LINUX')
+            ver=json.loads(z.read('assets/runtime-descriptor.json'))['dshVersion']
+            if ver!='0.2.1-rc.2':raise SystemExit('APK_OLD_DSH_VERSION:'+ver)
+            # The user explicitly opted out of the complete older DSH runtime.
+            legacy=[p for p in a if p.startswith('assets/recovery-dsh-runtime') or
+                    p.startswith('assets/recovery-rootfs') or
+                    p.startswith('assets/recovery-runtime.json') or
+                    p.startswith('assets/recovery-asset-locations.json') or
+                    p.startswith('assets/recovery-overlay/')]
+            if legacy: raise SystemExit('APK_UNWANTED_LEGACY_RECOVERY:'+repr(legacy[:10]))
+            # Check the ACTUAL packaged assets, not only the checked-in source.
+            registry=json.loads(z.read('assets/runtime-patches.json'))
+            if registry['dshVersion']!=ver:
+              raise SystemExit('APK_PATCH_REGISTRY_VERSION:'+repr((registry['dshVersion'],ver)))
+            count=0
+            for entry in registry['active']:
+              asset='assets/'+entry['asset']
+              if asset not in a:raise SystemExit('APK_MISSING_PATCH_RECIPE:'+asset)
+              recipe=json.loads(z.read(asset))
+              if recipe.get('dshVersion')!=ver:
+                raise SystemExit('APK_PATCH_RECIPE_VERSION:'+repr((asset,recipe.get('dshVersion'),ver)))
+              count+=1
+            if count<20: raise SystemExit('APK_TOO_FEW_ACTIVE_PATCHES:'+str(count))
+            print('VALIDATED_EMBEDDED_PATCH_VERSIONS',ver,'recipes',count)
+            print('VALIDATED_NO_LEGACY_RECOVERY')
+            dex=[zinfo for zinfo in z.infolist() if zinfo.filename.startswith('classes') and zinfo.filename.endswith('.dex')]
+            if not dex or any(zinfo.compress_type!=zipfile.ZIP_DEFLATED for zinfo in dex):
+              raise SystemExit('APK_DEX_NOT_COMPRESSED')
+            print('VALIDATED_DEX_COMPRESSION',len(dex),sum(zinfo.compress_size for zinfo in dex),sum(zinfo.file_size for zinfo in dex))
+            print('VALIDATED_DEBUG_APK',apk,apk.stat().st_size,hashlib.sha256(apk.read_bytes()).hexdigest(),'dsh',ver)
+          PY
+      - name: Assert the APK actually contains this build's source-compiled native V2 supervisor
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,zipfile
+          apk=Path('app/build/outputs/apk/standard/debug/app-standard-debug.apk')
+          built=Path('app/src/main/jniLibs/arm64-v8a/libdsha-session.so').read_bytes()
+          with zipfile.ZipFile(apk) as archive:
+              packaged=archive.read('lib/arm64-v8a/libdsha-session.so')
+          if built!=packaged:
+              raise SystemExit('APK_NATIVE_SESSION_NOT_SOURCE_COMPILED')
+          required=(b'READY DSHA_OWNED_TREE_V2',b'OWNED_TREE_EMPTY ECHILD')
+          if any(part not in packaged for part in required):
+              raise SystemExit('APK_NATIVE_V2_PROTOCOL_NOT_SHIPPED')
+          print('APK_NATIVE_SOURCE_BYTES_EQUAL',len(packaged),hashlib.sha256(packaged).hexdigest())
+          PY
+      - name: SHA-256 attest every signed managed runtime file inside the APK
+        run: python3 tools/verify-apk-runtime-contract.py app/build/outputs/apk/standard/debug/app-standard-debug.apk
+      - name: Measure actual APK size by resource group
+        shell: bash
+        run: |
+          python3 tools/report-apk-size.py \
+            app/build/outputs/apk/standard/debug/*.apk \
+            --json app/build/outputs/apk/standard/debug/size-breakdown.json
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: DSHA-0.2.1-rc2-APKSIZE-REPORT
+          path: app/build/outputs/apk/standard/debug/size-breakdown.json
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v186-NATIVE-V2
+          path: app/build/outputs/apk/standard/debug/*.apk
+          compression-level: 0
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: DSHA-v186-ARM64-NATIVE-V2-ANDROIDTEST
+          path: app/build/outputs/apk/androidTest/standard/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  # Same-run artifact dependency: never test a stale, hardcoded v177 APK.
+  # Emulator uses Android/Bionic with ARM translation; still not OEM real-device proof.
+  android-kvm-native-v2:
+    needs: test-apk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require Android emulator KVM
+        run: |
+          set -euo pipefail
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Provision Android 15 emulator exposing ARM64 via native bridge
+        run: |
+          set -euo pipefail
+          { yes || true; } | sdkmanager --install 'emulator' 'platform-tools' 'system-images;android-35;google_apis;x86_64'
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd -n dsha-kvm -k 'system-images;android-35;google_apis;x86_64' -d pixel_7 -p "$ANDROID_AVD_HOME/dsha-kvm.avd" --force
+          test -f "$ANDROID_AVD_HOME/dsha-kvm.avd/config.ini"
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v186-NATIVE-V2
+          path: packaged/main
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-v186-ARM64-NATIVE-V2-ANDROIDTEST
+          path: packaged/tests
+      - name: Prove kernel peer and ECHILD using APK built in THIS workflow run
+        run: bash tools/android-kvm-bridge-test.sh packaged/main packaged/tests
+      - name: Preserve Android emulator diagnostics on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSHA-v186-ANDROID-KVM-NATIVE-V2-EVIDENCE
+          path: emulator-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+  arm64-workspace-tools:
+    needs: test-apk
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v186-NATIVE-V2
+          path: packaged/main
+      - name: Exercise actual APK bxroot, Node and old/new search binaries on ARM64
+        run: python3 tools/test-bxroot-workspace.py packaged/main/app-standard-debug.apk
+
+  # Public repository: encrypt the freshly generated key with a strong GitHub
+  # Actions SECRET before committing its ciphertext. Do not reuse any keystore
+  # created in the ChatGPT sandbox. NEVER publish an unencrypted private key.
+  publish-signed-zip:
+    name: GitHub-native permanent key signing and signed ZIP artifact
+    needs: [test-apk, android-kvm-native-v2, arm64-workspace-tools]
+    if: github.ref == 'refs/heads/upgrade/dsh-0.2.1-rc.2'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions: {contents: write}
+    concurrency:
+      group: dsha-permanent-publishing-key
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Require the single GitHub-managed master password secret
+        shell: bash
+        env:
+          MASTER: ${{ secrets.DSHA_SIGNING_MASTER_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ ${#MASTER} -lt 32 ]]; then
+            echo "::error::Set DSHA_SIGNING_MASTER_PASSWORD (32+ random chars) in GitHub Actions Secrets."
+            echo "## Signed APK unavailable" >> "$GITHUB_STEP_SUMMARY"
+            echo "First configure the one GitHub repository secret DSHA_SIGNING_MASTER_PASSWORD." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install exact source-pinned Android build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          buildtools="$(python3 tools/ci-toolchain.py --field buildTools)"
+          sdkmanager "build-tools;$buildtools"
+      - name: Download non-debug APK from THIS SAME tested workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: DSHA-v186-STANDARD-UNSIGNED-RELEASE-CANDIDATE
+          path: unsigned-release
+      - name: Create or reuse GitHub-generated key, verify and sign release
+        env:
+          DSHA_SIGNING_MASTER_PASSWORD: ${{ secrets.DSHA_SIGNING_MASTER_PASSWORD }}
+        shell: bash
+        run: bash tools/ci-github-sign-release.sh
+      - name: Upload installable permanently signed APK as direct-download ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSHA-v186-GITHUB-KEY-SIGNED-STANDARD-APK
+          path: verified-signed-release/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30

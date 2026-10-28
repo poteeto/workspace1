@@ -1,0 +1,31 @@
+name: Export public Android apksigner tool
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths:
+      - .github/workflows/export-apksigner-tool.yml
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  export-tool:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'build-tools;36.0.0'
+      - name: Collect official Android apksigner executable jar
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar"
+          mkdir -p exported
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" exported/apksigner.jar
+          sha256sum exported/apksigner.jar > exported/apksigner.jar.sha256
+          java -jar exported/apksigner.jar --help | head -8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PUBLIC-ANDROID-SDK-36-APK-SIGNER-TOOL
+          path: exported/
+          retention-days: 7

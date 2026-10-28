@@ -64,6 +64,7 @@ def render():
     corejs = web['packages']['node_modules/core-js']
     portable = json.loads((ROOT / 'tools/pc-migration/package-lock.json').read_text(encoding='utf-8'))['packages']['node_modules/yaml']
     bxroot = json.loads((ROOT / 'tools/bxroot/lock.json').read_text(encoding='utf-8'))
+    ripgrep = json.loads((ROOT / 'tools/android-ripgrep.lock.json').read_text(encoding='utf-8'))
     acorn = json.loads((ROOT / 'tools/plugin-capabilities/package-lock.json').read_text(encoding='utf-8'))['packages']['node_modules/acorn']
     restricted = '\n'.join(f'| `{path}` | {row["version"]} | {row.get("license", "unknown")} | {row.get("resolved", "unknown")} |'
                            for path, row in sorted(packages.items()) if path and row.get('license', 'unknown') not in PERMISSIVE)
@@ -123,6 +124,7 @@ def render():
 - SnakeYAML 2.4（Apache-2.0）：固定官方 Maven Central JAR/POM 与 `snakeyaml-2.4` 源码标签，使用宿主 data-only SafeConstructor 投影凭据中的本机连接字段。许可原文为 `assets/licenses/snakeyaml-LICENSE.txt`，Java 8 类文件及 Android FIELD 路径见 `docs/audits/build156/snakeyaml-official-artifacts.json`；不由静态兼容声明推导旧设备验收完成。
 - Low 的 GeckoView 143.0.20251003115653 为 MPL-2.0，来自 Mozilla Maven；保留相应声明。AAR 原件与其中 12 个 arm64 原生成员的精确摘要见 `tools/native-dependencies.lock.json`，实际 APK 逐成员核对，Standard 不含这些成员。兼容版最低 API 23，不表示所有旧设备已经验收。
 - Ubuntu 软件包各自遵循其许可；包内 `/usr/share/doc` 与 common-licenses 保留版权信息。根环境仍为 Ubuntu 24.04 arm64，DSHA 基础环境身份 10。
+- Android 搜索工具使用 Ubuntu glibc ripgrep **{ripgrep['version']}**，固定原包 `{ripgrep['source']}{ripgrep['filename']}`，SHA-256 `{ripgrep['sha256']}`。原始 copyright（含 MIT/Unlicense、打包与依赖许可声明）为 `assets/ripgrep/copyright`，运行时保存到 `/usr/local/share/doc/dsha-ripgrep/copyright`；来源与签名索引由 `tools/android-ripgrep.lock.json` 和制备脚本绑定，不修改 npm 内原工具。
 - node-semver 7.8.1 为 ISC，完整许可随 `assets/plugin-semver.cjs` 提供。
 
 当前 Gradle 直接运行依赖坐标（不包含测试依赖；完整传递依赖许可审查仍需实际解析结果）：

@@ -25,7 +25,6 @@ import androidx.fragment.app.Fragment;
 
 import com.deepseekharness.app.DeviceBridgeService;
 import com.deepseekharness.app.DshaAccessibilityService;
-import com.deepseekharness.app.OverlayController;
 import com.deepseekharness.app.R;
 import com.deepseekharness.app.bridge.AdbBridge;
 import com.deepseekharness.app.core.ConfigStore;
@@ -73,40 +72,27 @@ public class ConfigFragment extends Fragment {
             ? R.id.dns_ipv4
             : "native".equals(c.getDnsMode()) ? R.id.dns_native : R.id.dns_auto);
 
-    v.findViewById(R.id.config_workspace_entry)
-        .setOnClickListener(x -> open(new WorkspaceFragment()));
-
-    v.findViewById(R.id.config_models)
-        .setOnClickListener(
-            x -> startActivity(new Intent(requireContext(), ModelSetupActivity.class)));
     EditText apiKey = v.findViewById(R.id.config_api_key);
     EditText port = v.findViewById(R.id.config_port);
     CompoundButton automaticPort = v.findViewById(R.id.config_port_auto);
     v.findViewById(R.id.config_restore_port_drafts)
         .setOnClickListener(x -> BrowserOriginRestore.show(requireContext()));
-    CompoundButton checkUpdate = v.findViewById(R.id.config_check_update);
     CompoundButton desktop = v.findViewById(R.id.config_desktop_mode);
     pictureSettings = v.findViewById(R.id.config_picture_in_picture_settings);
     pictureStatus = v.findViewById(R.id.config_picture_in_picture_status);
     pictureSettings.setOnClickListener(x -> openPictureInPictureSettings());
+    CompoundButton automaticPicture = v.findViewById(R.id.config_picture_in_picture_auto_enter);
+    automaticPicture.setChecked(c.isPictureInPictureAutoEnter());
+    automaticPicture.setEnabled(PictureInPictureActivity.supported(ctx));
+    // 显示偏好立即保存，无需重启 Web；保留后台网页也会收到偏好变化。
+    automaticPicture.setOnCheckedChangeListener(
+        (button, checked) -> c.setPictureInPictureAutoEnter(checked));
     renderPictureInPictureStatus();
-    CompoundButton staticLoader = v.findViewById(R.id.config_static_loader),
-        noSeccomp = v.findViewById(R.id.config_no_seccomp);
-    staticLoader.setChecked(false);
-    staticLoader.setVisibility(android.view.View.GONE);
+    CompoundButton noSeccomp = v.findViewById(R.id.config_no_seccomp);
     noSeccomp.setChecked(c.isProotSeccompDisabled());
     CompoundButton proroot = v.findViewById(R.id.config_proroot);
     CompoundButton lan = v.findViewById(R.id.config_lan_mode);
-    CompoundButton overlay = v.findViewById(R.id.config_overlay_stream);
     Button save = v.findViewById(R.id.config_save);
-
-    // 高级项折叠
-    View advBody = v.findViewById(R.id.config_adv_body);
-    v.findViewById(R.id.config_adv_header)
-        .setOnClickListener(
-            x ->
-                advBody.setVisibility(
-                    advBody.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE));
 
     // 回填当前值
     java.util.concurrent.atomic.AtomicReference<com.deepseekharness.app.util.CredentialRead>
@@ -202,7 +188,6 @@ public class ConfigFragment extends Fragment {
     port.setText(c.getPort());
     automaticPort.setChecked("auto".equals(c.getWebPortMode()));
     port.setEnabled(!automaticPort.isChecked());
-    checkUpdate.setChecked(c.isCheckUpdate());
     desktop.setChecked(c.isDesktopMode());
     CompoundButton gecko = v.findViewById(R.id.config_gecko_core);
     gecko.setVisibility(View.GONE);
@@ -211,7 +196,6 @@ public class ConfigFragment extends Fragment {
     gecko.setChecked(c.isGeckoCore());
     proroot.setChecked(c.isProroot());
     lan.setChecked(c.isLanMode());
-    overlay.setChecked(pref(ctx, "overlay_stream", false));
     bindChoice(
         v,
         R.id.config_runtime_choice,
@@ -231,6 +215,9 @@ public class ConfigFragment extends Fragment {
         "ipv4".equals(c.getDnsMode()) ? 1 : "native".equals(c.getDnsMode()) ? 2 : 0,
         index ->
             dns.check(index == 1 ? R.id.dns_ipv4 : index == 2 ? R.id.dns_native : R.id.dns_auto));
+    // Standard is fixed to System WebView; don't show a single-item pseudo setting.
+    if (!com.deepseekharness.app.BuildConfig.LOW_ANDROID)
+      v.findViewById(R.id.config_core_choice).setVisibility(View.GONE);
     bindChoice(
         v,
         R.id.config_core_choice,
@@ -242,11 +229,6 @@ public class ConfigFragment extends Fragment {
             : new String[] {"System WebView"},
         com.deepseekharness.app.BuildConfig.LOW_ANDROID && c.isGeckoCore() ? 1 : 0,
         index -> gecko.setChecked(index == 1));
-
-    // 悬浮条外观与行为（照 1.1.9.1：底色预设 + 不透明度/行数/字号/停留 + 行为开关）
-    v.findViewById(R.id.config_overlay_style).setOnClickListener(x -> showOverlayStyleDialog());
-
-    v.findViewById(R.id.config_repo_link).setOnClickListener(x -> openRepo(ctx));
 
     Runnable validateInputs =
         () -> {
@@ -286,7 +268,6 @@ public class ConfigFragment extends Fragment {
                     ? c.getPortInt()
                     : com.deepseekharness.app.util.ConfigInput.port(port.getText().toString());
           } catch (IllegalArgumentException e) {
-            advBody.setVisibility(View.VISIBLE);
             port.setError(e.getMessage());
             port.requestFocus();
             return;
@@ -329,28 +310,16 @@ public class ConfigFragment extends Fragment {
                   renderCredential.run();
                   c.setWebPort(automaticPort.isChecked() ? "auto" : "fixed", chosenPort);
                   c.setPermissionMode(permissionMode.get());
-                  c.setCheckUpdate(checkUpdate.isChecked());
                   c.setDesktopMode(desktop.isChecked());
                   if (com.deepseekharness.app.BuildConfig.LOW_ANDROID)
                     c.setGeckoCore(gecko.isChecked());
                   c.setProroot(proroot.isChecked());
-                  c.setProrootStaticLoader(staticLoader.isChecked());
                   c.setProotSeccompDisabled(noSeccomp.isChecked());
                   c.setDnsMode(
                       dns.getCheckedRadioButtonId() == R.id.dns_ipv4
                           ? "ipv4"
                           : dns.getCheckedRadioButtonId() == R.id.dns_native ? "native" : "auto");
                   c.setLanMode(lan.isChecked());
-                  boolean overlayEnabled = overlay.isChecked();
-                  setPref(ctx, "overlay_stream", overlayEnabled);
-                  // The settings switch is also the lifecycle switch for the
-                  // WindowManager overlay.  Previously only the preference changed;
-                  // an already visible bar stayed alive after disabling and a newly
-                  // enabled bar did not receive the refreshed style until a later
-                  // process event, which looked like the control did nothing.
-                  if (!overlayEnabled) OverlayController.teardown(ctx.getApplicationContext());
-                  else if (OverlayController.permitted(ctx))
-                    OverlayController.applyStyleNow(ctx.getApplicationContext());
                   applyLanMode(c, lan.isChecked());
                   if (lan.isChecked() && getActivity() instanceof MainActivity)
                     ((MainActivity) getActivity()).requestLocalNetwork();
@@ -362,8 +331,6 @@ public class ConfigFragment extends Fragment {
                                   : "已保存；网页显示选项重新进入对话生效，端口与运行时需重启 Web"),
                           Toast.LENGTH_LONG)
                       .show();
-                  if (overlay.isChecked() && !OverlayController.permitted(ctx))
-                    openOverlayPermission();
                   return null;
                 });
           } catch (Exception e) {
@@ -426,17 +393,6 @@ public class ConfigFragment extends Fragment {
                 : R.string.picture_in_picture_disabled);
   }
 
-  private void openOverlayPermission() {
-    try {
-      startActivity(
-          new Intent(
-              Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-              Uri.parse("package:" + requireContext().getPackageName())));
-    } catch (Exception e) {
-      toast(com.deepseekharness.app.util.UiText.text("未取得悬浮窗权限，请到系统设置 → 应用 → DSHA → 悬浮窗中允许"));
-    }
-  }
-
   /** LAN 开关真正生效：开启时若 dsh 已鉴权则启动 3081 代理，关闭时停掉监听。 */
   private void applyLanMode(ConfigStore c, boolean on) {
     try {
@@ -465,32 +421,6 @@ public class ConfigFragment extends Fragment {
         .addToBackStack(null)
         .replace(R.id.fragment_container, f)
         .commit();
-  }
-
-  private void showOverlayStyleDialog() {
-    UiMotion.page(requireContext(), getParentFragmentManager().beginTransaction())
-        .replace(R.id.fragment_container, new OverlayFragment())
-        .addToBackStack("config")
-        .commit();
-  }
-
-  private void openRepo(Context ctx) {
-    try {
-      startActivity(
-          new Intent(
-              Intent.ACTION_VIEW,
-              Uri.parse(com.deepseekharness.app.util.Constants.REPOSITORY_URL)));
-    } catch (Exception e) {
-      toast(com.deepseekharness.app.util.UiText.text("无法打开浏览器"));
-    }
-  }
-
-  private boolean pref(Context ctx, String k, boolean def) {
-    return ctx.getSharedPreferences(Constants.PREFS, Context.MODE_PRIVATE).getBoolean(k, def);
-  }
-
-  private void setPref(Context ctx, String k, boolean v) {
-    ctx.getSharedPreferences(Constants.PREFS, Context.MODE_PRIVATE).edit().putBoolean(k, v).apply();
   }
 
   private void toast(String s) {

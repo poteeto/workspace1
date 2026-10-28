@@ -18,6 +18,20 @@ public final class EnvironmentAccess {
     }
   }
 
+  /** Refresh identical backend bytes without treating ordinary unknown history as a data repair. */
+  public static boolean sameBundleOverlay(HarnessController controller) {
+    try {
+      var installed = controller.proot().installedRuntimeDescriptor();
+      return controller.proot().canUpdateManagedRuntime()
+          && installed != null
+          && com.deepseekharness.app.backup.RuntimeDescriptor.healthy(
+              controller.proot().runtimeHealth(), installed.id())
+          && installed.sameBundleOverlay(controller.proot().expectedRuntimeDescriptor());
+    } catch (java.io.IOException error) {
+      return false;
+    }
+  }
+
   /** 同一 APK 安装只自动尝试一次；覆盖安装修复包后可重新尝试同一受管候选。 */
   public static String candidateAttemptKey(HarnessController controller)
       throws java.io.IOException {
@@ -43,7 +57,9 @@ public final class EnvironmentAccess {
           false,
           true,
           com.deepseekharness.app.core.MaintenanceCoordinator.isEnvironmentTaskBusy(),
-          com.deepseekharness.app.core.MaintenanceCoordinator.pending(controller),
+          com.deepseekharness.app.core.MaintenanceCoordinator.pending(controller)
+              || !sameBundleOverlay(controller)
+                  && replacementUnconfirmed(controller.context().getFilesDir()),
           candidate,
           controller
               .context()
@@ -54,6 +70,16 @@ public final class EnvironmentAccess {
       // 不能认证 APK 自带的运行时描述时，不得由 START_STICKY/看门狗启动旧 Web。
       return com.deepseekharness.app.util.EnvironmentIdentity.shouldBlockRuntimeStart(
           false, false, false, false, "", "");
+    }
+  }
+
+  /** An old run can postpone file replacement without making a healthy installation unusable. */
+  private static boolean replacementUnconfirmed(java.io.File files) {
+    try {
+      return com.deepseekharness.app.runtime.BoundedGuestSessions.firstPending(files) != null;
+    } catch (java.io.IOException unreadableHistory) {
+      // Keep the replacement barrier; a missing process receipt is not a damaged environment.
+      return true;
     }
   }
 }

@@ -128,6 +128,13 @@ def patched_content(relative, data):
             recipe = json.loads(recipe_path.read_text(encoding='utf-8'))
             if recipe.get('module') != name or recipe.get('dshVersion') != expected:
                 raise ValueError(f'{label} 补丁目标或 DSH 版本未锁定')
+            # DSH 0.2.1-rc.2 no longer contains the old TOKEN_STYLE claim
+            # decoration or its splitText transform in this published module.
+            # Never force a stale patch into a different Lexical implementation.
+            if label == 'Lexical claim' and expected == '0.2.1-rc.2':
+                if 'TOKEN_STYLE' in text or any(patch['before'] in text for patch in recipe['patches']):
+                    raise ValueError('DSH rc2 claim implementation changed again; review before packaging')
+                continue
             for patch in recipe['patches']:
                 if text.count(patch['before']) != 1:
                     raise ValueError(f'上游 {label} 结构变化，必须重新检查')
@@ -479,10 +486,18 @@ var DshaRecordHints = class {
         text = text.replace(create_anchor, create_replacement)
         # The emitted JS has no private field declarations. Add the field next
         # to the tracker declaration in the class body instead.
-        class_anchor = '''\ttracker = new JsonlBackendTracker(this.name);\n\tgenerationFormat;'''
-        if text.count(class_anchor) != 1:
-            raise ValueError('会话后端 tracker 结构变化，必须重新检查')
-        text = text.replace(class_anchor, '''\ttracker = new JsonlBackendTracker(this.name);\n\tdshaSessionHints = new DshaSessionHints();\n\tgenerationFormat;''')
+        # rc2 moved tracker construction into the constructor and now declares
+        # only the class field. Inject our hint beside that exact declaration.
+        if json.loads((LOCK_ROOT / 'package.json').read_text())['dependencies']['@deepseek-ai/dsh'] == '0.2.1-rc.2':
+            class_anchor = '\ttracker;\n'
+            if text.count(class_anchor) != 1:
+                raise ValueError('会话后端 rc2 tracker 字段布局变化，必须重新检查')
+            text = text.replace(class_anchor, class_anchor + '\tdshaSessionHints = new DshaSessionHints();\n')
+        else:
+            class_anchor = '\ttracker = new JsonlBackendTracker(this.name);'
+            if text.count(class_anchor) != 1:
+                raise ValueError('会话后端 tracker 身份变化，必须重新检查')
+            text = text.replace(class_anchor, class_anchor + '\n\tdshaSessionHints = new DshaSessionHints();')
         find_anchor = '''\tasync findLog(id, signal) {\n\t\tconst matches = [];'''
         find_replacement = '''\tasync findLog(id, signal) {\n\t\tconst hinted = this.dshaSessionHints.get(id);\n\t\tif (hinted !== void 0) {\n\t\t\tconst selected = await this.resolveHintedGeneration(hinted, id, signal);\n\t\t\tif (selected !== void 0) return selected;\n\t\t\tthis.dshaSessionHints.forget(id);\n\t\t}\n\t\tconst matches = [];'''
         if text.count(find_anchor) != 1:
@@ -498,7 +513,10 @@ var DshaRecordHints = class {
         if text.count(release_anchor) != 1:
             raise ValueError('会话 releaseHandle 结构变化，必须重新检查')
         text = text.replace(release_anchor, release_replacement)
-        hints_anchor = '''/**\n* The JSONL persistence backend.'''
+        expected_dsh = json.loads((LOCK_ROOT / 'package.json').read_text())['dependencies']['@deepseek-ai/dsh']
+        hints_anchor = ('var JsonlSessionPersistence = class extends SessionPersistence {'
+                        if expected_dsh == '0.2.1-rc.2'
+                        else '/**\n* The JSONL persistence backend.')
         hints_code = '''/* DSHA_SESSION_DIRECT_HINTS_V1 */\nclass DshaSessionHints {\n\tentries = new Map();\n\tremember(header) {\n\t\tif (header && typeof header.id === "string") this.entries.set(header.id, { id: header.id, cwd: header.cwd });\n\t}\n\tget(id) { return this.entries.get(id); }\n\tforget(id) { this.entries.delete(id); }\n}\n'''
         if text.count(hints_anchor) != 1:
             raise ValueError('会话后端类锚点变化，必须重新检查')

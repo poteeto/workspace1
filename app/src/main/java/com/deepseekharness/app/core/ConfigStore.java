@@ -280,6 +280,14 @@ public class ConfigStore {
     prefs.edit().putBoolean(Constants.KEY_PICTURE_IN_PICTURE, value).apply();
   }
 
+  public boolean isPictureInPictureAutoEnter() {
+    return flag(Constants.KEY_PICTURE_IN_PICTURE_AUTO_ENTER, false);
+  }
+
+  public void setPictureInPictureAutoEnter(boolean value) {
+    prefs.edit().putBoolean(Constants.KEY_PICTURE_IN_PICTURE_AUTO_ENTER, value).apply();
+  }
+
   public String getPictureInPictureLayout() {
     return com.deepseekharness.app.util.PictureInPicturePolicy.layout(
         text(Constants.KEY_PICTURE_IN_PICTURE_LAYOUT, "auto"));

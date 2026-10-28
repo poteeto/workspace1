@@ -1,6 +1,7 @@
 package com.deepseekharness.app.runtime;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import java.io.File;
@@ -252,6 +253,43 @@ public class BoundedGuestSessionsTest {
                 }));
     org.junit.Assert.assertTrue(new File(home, first.id()).isDirectory());
     org.junit.Assert.assertTrue(new File(home, later.id()).isDirectory());
+  }
+
+  @Test
+  public void nativeSavedProofSurvivesLostSocketAndReapsWithoutReboot() throws Exception {
+    File files = temporary.newFolder("files");
+    var fs = new JvmBackupFileSystem();
+    var operation = BoundedGuestSessions.begin(fs, files);
+    operation.nativeProtocol();
+    File entry = new File(files, "bounded-guest-active/" + operation.id());
+    String birth = operation.id() + "\n123 456 123\n";
+    write(fs, new File(entry, "identity"), birth);
+    write(fs, new File(entry, "tree-empty"), birth + "ECHILD 143\n");
+    operation.uncertain();
+    assertEquals(Integer.valueOf(143), operation.savedTreeExit());
+    operation.treeProof(143); // 收到通知不重写 native 已发布的证明。
+    assertThrows(IOException.class, () -> operation.treeProof(0));
+    BoundedGuestSessions.reapExited(fs, files, (pid, started) -> true, (pid, started) -> true,
+        () -> { throw new IOException("BOOT_SOURCE_MUST_NOT_BE_NEEDED"); });
+    assertNull(BoundedGuestSessions.firstPending(fs, files));
+  }
+
+  @Test
+  public void nativeTemporaryAloneDoesNotProveExitButPublishedProofCanFinishInterruptedUnlink() throws Exception {
+    File files = temporary.newFolder("files");
+    var fs = new JvmBackupFileSystem();
+    var operation = BoundedGuestSessions.begin(fs, files);
+    operation.nativeProtocol();
+    File entry = new File(files, "bounded-guest-active/" + operation.id());
+    String birth = operation.id() + "\n123 456 123\n";
+    write(fs, new File(entry, "identity"), birth);
+    write(fs, new File(entry, "tree-empty.native"), birth + "ECHILD 0\n");
+    operation.uncertain();
+    assertNull(operation.savedTreeExit());
+    assertNotNull(BoundedGuestSessions.firstPending(fs, files));
+    write(fs, new File(entry, "tree-empty"), birth + "ECHILD 0\n");
+    BoundedGuestSessions.reapExited(fs, files, (pid, started) -> true);
+    assertNull(BoundedGuestSessions.firstPending(fs, files));
   }
 
   private static void write(JvmBackupFileSystem fs, File file, String value) throws IOException {

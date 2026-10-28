@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 顺序按**使用频率**排，不按功能分类：
-     启动（每次都点）→ 插件（常逛）→ 设置（偶尔）→ 终端（排查时才用）。
-     原顺序把终端放第二位，是按「技术栈层次」排的，但那不是用户的动线。 -->
+<!-- 保留启动、插件、设置三个高频入口；终端下沉到设置中的高级工具。 -->
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/nav_launch"
@@ -15,8 +13,4 @@
         android:id="@+id/nav_settings"
         android:icon="@drawable/ic_settings"
         android:title="@string/ui_m0023" />
-    <item
-        android:id="@+id/nav_terminal"
-        android:icon="@drawable/ic_terminal"
-        android:title="@string/ui_m0021" />
 </menu>

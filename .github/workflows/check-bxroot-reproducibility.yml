@@ -1,0 +1,41 @@
+name: Rebuild and verify pinned bxroot ARM64 runtime
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths: [.github/workflows/check-bxroot-reproducibility.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  verify-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ubuntu 24.04 ARM64 cross toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-13-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-dev-arm64-cross
+          aarch64-linux-gnu-gcc-13 --version
+      - name: Extract pinned source and apply DSHA patch set
+        run: python3 -B tools/bxroot/build.py --prepare-source "$RUNNER_TEMP/bxroot-src"
+      - name: Build cross-compiled native engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd "$RUNNER_TEMP/bxroot-src" && BXROOT_OUTPUT="$RUNNER_TEMP/bxroot-bin" sh "$GITHUB_WORKSPACE/tools/bxroot/build-linux.sh")
+      - name: Compare native images against exact DSHA source lock
+        run: |
+          python3 - <<'PY'
+          import json,hashlib,os
+          from pathlib import Path
+          j=json.loads(Path('tools/bxroot/lock.json').read_text())
+          base=Path(os.environ['RUNNER_TEMP'])/'bxroot-bin'
+          mismatches=[]
+          for row in j['artifacts']:
+            f=base/row['name']
+            actual=hashlib.sha256(f.read_bytes()).hexdigest()
+            print(row['name'],'recorded=',row['sha256'],'actual=',actual,'size=',f.stat().st_size)
+            if actual!=row['sha256']:mismatches.append(row['name'])
+          if mismatches:raise SystemExit('BXROOT_LOCK_REPRO_MISMATCH:'+','.join(mismatches))
+          print('BXROOT_ALL_LOCKED_BYTES_MATCH')
+          PY

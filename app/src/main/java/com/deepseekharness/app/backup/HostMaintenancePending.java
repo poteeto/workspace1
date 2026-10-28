@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Read-only inventory of active or uncertain host maintenance records. */
+/** Read-only inventory of file-changing maintenance, independent of ordinary process history. */
 public final class HostMaintenancePending {
   private HostMaintenancePending() {}
 
@@ -61,14 +61,16 @@ public final class HostMaintenancePending {
     return result;
   }
 
-  static final List<Domain> RECOVERABLE =
-      List.of(
+  static final List<Domain> RECOVERABLE = recoverable(new AndroidBackupFileSystem());
+
+  private static List<Domain> recoverable(BackupFileSystem fs) {
+    return List.of(
           new Domain(
               "legacy-restore",
               root -> {
                 String id =
                     LegacyRestoreJournalRecovery.pending(
-                        new AndroidBackupFileSystem(), root.getCanonicalFile());
+                        fs, root.getCanonicalFile());
                 return id == null ? List.of() : List.of(id);
               },
               false),
@@ -76,13 +78,13 @@ public final class HostMaintenancePending {
               "cold-install",
               root ->
                   ColdInstallTransaction.pending(
-                      new AndroidBackupFileSystem(), root.getCanonicalFile()),
+                      fs, root.getCanonicalFile()),
               false),
           new Domain(
               "legacy-maintenance",
               root -> {
                 MaintenanceTransaction tx =
-                    MaintenanceTransaction.pending(new AndroidBackupFileSystem(), root);
+                    MaintenanceTransaction.pending(fs, root);
                 return tx == null ? List.of() : List.of(tx.directory().getName());
               },
               false),
@@ -90,7 +92,7 @@ public final class HostMaintenancePending {
               "legacy-runtime",
               root -> {
                 RuntimeUpdateTransaction tx =
-                    RuntimeUpdateTransaction.pending(new AndroidBackupFileSystem(), root);
+                    RuntimeUpdateTransaction.pending(fs, root);
                 return tx == null ? List.of() : List.of(tx.directory().getName());
               },
               false),
@@ -100,7 +102,7 @@ public final class HostMaintenancePending {
                 List<String> ids = new ArrayList<>();
                 for (ManagedRuntimeTransaction tx :
                     ManagedRuntimeTransaction.pending(
-                        new AndroidBackupFileSystem(), root.getCanonicalFile()))
+                        fs, root.getCanonicalFile()))
                   ids.add(tx.directory().getName());
                 return ids;
               },
@@ -109,7 +111,6 @@ public final class HostMaintenancePending {
               "startup-configuration",
               root -> {
                 File files = root.getCanonicalFile();
-                AndroidBackupFileSystem fs = new AndroidBackupFileSystem();
                 ConfigurationSnapshots snapshots =
                     new ConfigurationSnapshots(fs, files, new UserDataLayout(fs, files).current());
                 return snapshots.pending() ? List.of("startup-config-repair") : List.of();
@@ -119,7 +120,6 @@ public final class HostMaintenancePending {
               "plugin-install",
               root -> {
                 File files = root.getCanonicalFile();
-                AndroidBackupFileSystem fs = new AndroidBackupFileSystem();
                 return names(
                     PluginInstallJournals.pending(fs, new UserDataLayout(fs, files).current()));
               },
@@ -129,7 +129,7 @@ public final class HostMaintenancePending {
               root -> {
                 EnvironmentRebuildTransaction tx =
                     EnvironmentRebuildTransaction.pending(
-                        new AndroidBackupFileSystem(), root.getCanonicalFile());
+                        fs, root.getCanonicalFile());
                 return tx == null ? List.of() : List.of(tx.directory().getName());
               },
               false),
@@ -138,8 +138,9 @@ public final class HostMaintenancePending {
               root ->
                   names(
                       HostPendingTransactions.pending(
-                          new AndroidBackupFileSystem(), root.getCanonicalFile())),
+                          fs, root.getCanonicalFile())),
               true));
+  }
 
   private static Check check(Domain domain, File filesDir) {
     try {
@@ -151,15 +152,11 @@ public final class HostMaintenancePending {
   }
 
   public static Check inspect(File filesDir) {
-    Check found;
-    try {
-      String guest = com.deepseekharness.app.runtime.BoundedGuestSessions.firstPending(filesDir);
-      found = guest == null ? Check.clear() : Check.pending("bounded-guest", guest);
-    } catch (IOException failure) {
-      found = Check.unreadable("bounded-guest", failure);
-    }
-    if (found.blocked) return found;
     return inspectRecoverable(filesDir, RECOVERABLE);
+  }
+
+  public static Check inspect(BackupFileSystem fs, File filesDir) {
+    return inspectRecoverable(filesDir, recoverable(fs));
   }
 
   static Check inspectRecoverable(File filesDir, List<Domain> domains) {

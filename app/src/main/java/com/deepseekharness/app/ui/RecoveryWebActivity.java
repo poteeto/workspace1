@@ -45,6 +45,11 @@ public final class RecoveryWebActivity extends AppCompatActivity {
   @Override
   protected void onCreate(Bundle saved) {
     super.onCreate(saved);
+    if (!com.deepseekharness.app.BuildConfig.BUNDLED_LEGACY_RECOVERY) {
+      startActivity(new Intent(this, RecoveryActivity.class));
+      finish();
+      return;
+    }
     microphone = new BrowserMicrophone(this);
     retained = new androidx.lifecycle.ViewModelProvider(this).get(Retained.class);
     LinearLayout root = new LinearLayout(this);
@@ -167,6 +172,7 @@ public final class RecoveryWebActivity extends AppCompatActivity {
   @Override
   protected void onResume() {
     super.onResume();
+    if (!com.deepseekharness.app.BuildConfig.BUNDLED_LEGACY_RECOVERY) return;
     if (retained != null && retained.browser != null)
       retained.browser.syncLanguage(
           new com.deepseekharness.app.core.ConfigStore(this).getUiLanguage());

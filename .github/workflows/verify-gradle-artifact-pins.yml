@@ -1,0 +1,67 @@
+name: Record missing pinned Gradle artifact hashes
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths: [.github/workflows/verify-gradle-artifact-pins.yml]
+  workflow_dispatch:
+permissions: {contents: write}
+jobs:
+  pin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+        with: {packages: platform-tools}
+      - name: Android SDK
+        shell: bash
+        run: |
+          sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
+      - name: Resolve JVM tests and gather previously omitted SHA-256 pins
+        shell: bash
+        run: |
+          chmod +x gradlew
+          set +e
+          ./gradlew :app:testStandardDebugUnitTest :app:testLowDebugUnitTest \
+            -x :app:prepareStandardAssets -x :app:prepareRecoveryAssets \
+            -x :app:verifyBxrootNative -x :app:verifyBxrootProjection \
+            --write-verification-metadata sha256 --no-daemon --max-workers=2
+          result=$?
+          echo "Gradle returned $result; record only explicit checksum additions"
+      - name: Refuse deletion or modification of any preexisting verification checksum
+        run: |
+          python3 - <<'PY'
+          import subprocess,xml.etree.ElementTree as ET
+          from pathlib import Path
+          def pins(blob):
+            xml=ET.fromstring(blob)
+            data={}
+            for comp in xml.iter():
+              if comp.tag.rsplit('}',1)[-1]!='component':continue
+              key=tuple(comp.attrib.get(k) for k in ('group','name','version'))
+              for item in comp:
+                if item.tag.rsplit('}',1)[-1]!='artifact':continue
+                sha=[x.attrib['value'] for x in item if x.tag.rsplit('}',1)[-1]=='sha256']
+                if sha:data[key+(item.attrib.get('name'),)]=sha[0]
+            return data
+          before=pins(subprocess.check_output(['git','show','HEAD:gradle/verification-metadata.xml']))
+          after=pins(Path('gradle/verification-metadata.xml').read_bytes())
+          altered=[k for k,v in before.items() if after.get(k)!=v]
+          if altered:raise SystemExit('PREEXISTING_VERIFICATION_PIN_CHANGED:'+str(altered[:10]))
+          added=sorted(set(after)-set(before))
+          print('EXISTING_PINS_PRESERVED',len(before),'NEW_CHECKSUM_PINS',len(added))
+          for k in added[:35]:print('NEW',k,after[k])
+          PY
+      - name: Commit additional dependency SHA-256 pins
+        shell: bash
+        run: |
+          git add gradle/verification-metadata.xml
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Append immutable Maven artifact SHA-256 verification pins"
+          git fetch origin upgrade/dsh-0.2.1-rc.2
+          git rebase origin/upgrade/dsh-0.2.1-rc.2
+          git push origin HEAD:upgrade/dsh-0.2.1-rc.2

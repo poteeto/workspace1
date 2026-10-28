@@ -49,7 +49,7 @@ public class HostMaintenancePendingTest {
         legacy
             .replaceAll("\\s+", " ")
             .contains(
-                "LegacyRestoreJournalRecovery.pending( new AndroidBackupFileSystem(), root.getCanonicalFile())"));
+                "LegacyRestoreJournalRecovery.pending( fs, root.getCanonicalFile())"));
     String manager = java.nio.file.Files.readString(source.resolve("BackupManager.java"));
     String startup =
         manager.substring(

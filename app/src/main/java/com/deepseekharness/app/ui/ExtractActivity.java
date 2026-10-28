@@ -68,6 +68,7 @@ public class ExtractActivity extends AppCompatActivity {
     enter.setAllCaps(false);
     content.addView(retry, new LinearLayout.LayoutParams(-1, -2));
     content.addView(enter, new LinearLayout.LayoutParams(-1, -2));
+    if (com.deepseekharness.app.BuildConfig.BUNDLED_LEGACY_RECOVERY) {
     Button emergency = new androidx.appcompat.widget.AppCompatButton(this);
     emergency.setText(
         com.deepseekharness.app.util.UiText.choose("启动应急 DSH", "Start emergency DSH"));
@@ -77,6 +78,8 @@ public class ExtractActivity extends AppCompatActivity {
     emergency.setAllCaps(false);
     emergency.setOnClickListener(v -> startActivity(new Intent(this, RecoveryActivity.class)));
     content.addView(emergency, new LinearLayout.LayoutParams(-1, -2));
+    }
+
     Button logs = new androidx.appcompat.widget.AppCompatButton(this);
     logs.setText(com.deepseekharness.app.util.UiText.choose("查看本次维护记录", "View maintenance record"));
     logs.setOnClickListener(v -> startActivity(DiagnosticActivity.downloadLogs(this)));
@@ -122,6 +125,19 @@ public class ExtractActivity extends AppCompatActivity {
             : saved.getLong("data_task_id", 0);
     automaticEntry = saved != null && saved.getBoolean("automatic_entry", false);
     automaticDeclined = saved != null && saved.getBoolean("automatic_declined", false);
+    // Older versions routed ordinary interrupted runs here and saved a failed RECOVER task.
+    // Reopening that page must not keep a healthy installation behind the obsolete gate.
+    if (!getIntent().getBooleanExtra("review_only", false)
+        && !getIntent().getBooleanExtra("force_extract", false)
+        && com.deepseekharness.app.util.BackupTaskKinds.is(
+            com.deepseekharness.app.util.BackupTaskKinds.RECOVER, task.snapshot().kind)
+        && !task.busy()
+        && !task.pendingMaintenance()
+        && controller.isEnvironmentReady()
+        && !com.deepseekharness.app.core.EnvironmentAccess.requiresMaintenanceBeforeStart(controller)) {
+      proceed();
+      return;
+    }
     if (task.maintenanceBusy()) taskId = task.snapshot().id;
     else if (saved == null
         && taskId == 0
@@ -184,6 +200,7 @@ public class ExtractActivity extends AppCompatActivity {
         pending = task.pendingMaintenanceForUi(),
         executionBusy = task.busy();
     boolean ready = environmentReady(s, busy, pending);
+    var pendingDetail = task.pendingMaintenanceDetailForUi();
     String renderKey =
         s.id
             + ":"
@@ -196,6 +213,7 @@ public class ExtractActivity extends AppCompatActivity {
             + executionBusy
             + ":"
             + pending
+            + ":" + pendingDetail.domain + ":" + pendingDetail.operation + ":" + pendingDetail.error
             + ":"
             + ready
             + ":"
@@ -222,6 +240,14 @@ public class ExtractActivity extends AppCompatActivity {
             ? com.deepseekharness.app.util.MaintenanceErrorText.render(s.detail)
             : com.deepseekharness.app.util.UiText.text(
                 "相同基础环境只更新 dsh 与内置插件，个人数据保持原位；基础环境变更时先保护数据再重建。验证失败可恢复原环境。"));
+    if (pending && !busy) {
+      String explanation = com.deepseekharness.app.util.UiText.choose(
+              "检测到待恢复或无法读取的维护记录，请先恢复；原环境和个人数据保留。",
+              "An interrupted or unreadable maintenance record requires recovery. The original environment and personal data are retained.");
+      detail.setText(explanation + "\n\n" + pendingDetail.domain + " / " + pendingDetail.operation
+          + (pendingDetail.error.isEmpty() ? "" : "\n" + pendingDetail.error)
+          + (mine && !s.detail.isEmpty() ? "\n\n" + com.deepseekharness.app.util.MaintenanceErrorText.render(s.detail) : ""));
+    }
     boolean failed =
         mine
             && (s.status == BackupTaskState.Status.FAILED

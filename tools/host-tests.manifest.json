@@ -331,6 +331,18 @@
       "reason": "Current isolated guard/cache/client-seed regression; no device actions"
     },
     {
+      "path": "tools/test-bxroot-workspace.py",
+      "stage": "support",
+      "requires": [
+        "python39"
+      ],
+      "args": [],
+      "environment": {},
+      "timeoutSeconds": 600,
+      "cli": "Requires one same-run APK path and native ARM64 Linux; explicitly required by the Android release workflow",
+      "reason": "Same-run APK bxroot, Node, static failure reproduction and glibc rg in an isolated ARM64 Linux root; neither a generic desktop test nor Android device acceptance"
+    },
+    {
       "path": "tools/test-cache-contract.mjs",
       "stage": "runtime",
       "requires": [
@@ -687,6 +699,19 @@
       "cli": "no positional arguments; see explicit environment/requirements"
     },
     {
+      "path": "tools/test-github-signing-state.py",
+      "stage": "fast",
+      "requires": [
+        "python39"
+      ],
+      "platform": null,
+      "args": [],
+      "environment": {},
+      "timeoutSeconds": 180,
+      "cli": "No positional arguments; isolated source fixtures",
+      "reason": "Existing signing identity/content regression"
+    },
+    {
       "path": "tools/test-host-test-runner.py",
       "stage": "fast",
       "reason": "Actual child failures/timeouts, manifest coverage and private environment; explicit setup-error fixture",
@@ -1030,6 +1055,21 @@
       "environment": {},
       "timeoutSeconds": 600,
       "args": []
+    },
+    {
+      "path": "tools/test-native-session-durable-proof.py",
+      "stage": "linux",
+      "requires": [
+        "python39"
+      ],
+      "platform": [
+        "linux"
+      ],
+      "args": [],
+      "environment": {},
+      "timeoutSeconds": 180,
+      "cli": "No positional arguments; isolated source fixtures",
+      "reason": "Existing real Linux kernel supervisor and disconnect-proof regression; no Android device"
     },
     {
       "path": "tools/test-native-session-handshake.py",
@@ -1945,6 +1985,32 @@
       "cli": "no positional arguments; see explicit environment/requirements"
     },
     {
+      "path": "tools/test-verify-official-apk.py",
+      "stage": "fast",
+      "requires": [
+        "python39"
+      ],
+      "platform": null,
+      "args": [],
+      "environment": {},
+      "timeoutSeconds": 180,
+      "cli": "No positional arguments; isolated source fixtures",
+      "reason": "Existing signing identity/content regression"
+    },
+    {
+      "path": "tools/test-verify-signed-apk-content.py",
+      "stage": "fast",
+      "requires": [
+        "python39"
+      ],
+      "platform": null,
+      "args": [],
+      "environment": {},
+      "timeoutSeconds": 180,
+      "cli": "No positional arguments; isolated source fixtures",
+      "reason": "Existing signing identity/content regression"
+    },
+    {
       "path": "tools/test-vscreen-bundle.mjs",
       "stage": "runtime",
       "reason": "Current isolated software regression; no device actions",
@@ -2104,6 +2170,33 @@
         "--verify-archive"
       ],
       "cli": "--verify-archive; current source/marker/lock bytes and production builder through DSHA_PYTHON; no APK/archive generation or fixture-pointer mutation"
+    },
+    {
+      "path": "tools/test-workspace-environment.mjs",
+      "stage": "runtime",
+      "requires": [
+        "node24",
+        "raw"
+      ],
+      "args": [],
+      "environment": {},
+      "timeoutSeconds": 180,
+      "cli": "--diagnostics-only for foreign-architecture module trees; native search uses matching architecture",
+      "reason": "Screenshot command, verified bxroot preload, preserved destructive approvals, original rc2 subprocess search, bounded redacted diagnostics"
+    },
+    {
+      "path": "tools/test-workspace-ui.mjs",
+      "stage": "runtime",
+      "requires": [
+        "node24",
+        "raw",
+        "browser"
+      ],
+      "args": [],
+      "environment": {},
+      "timeoutSeconds": 180,
+      "cli": "No positional arguments; exact current rc2 recipes and frontend renderer",
+      "reason": "Real model selection, write lock/save/cancel/search, stable layout, themes, reduced motion and stats detail callbacks; no device actions"
     }
   ],
   "historicalExcluded": [

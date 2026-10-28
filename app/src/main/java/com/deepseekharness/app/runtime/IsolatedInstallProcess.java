@@ -30,6 +30,8 @@ final class IsolatedInstallProcess extends Process implements AutoCloseable, Own
   private final ExitEvidence evidence;
   private NativeTreeControl control;
   private String runtimeMode = "UNKNOWN";
+  // True only after SO_PEERCRED proved the signed session supervisor identity.
+  private boolean kernelPeerBirth;
 
   static boolean supported(android.content.Context context) {
     return sessionLauncher(context) != null;
@@ -73,6 +75,7 @@ final class IsolatedInstallProcess extends Process implements AutoCloseable, Own
       command.add(launcher);
       command.add("--birth-handshake");
       command.add(control.argument());
+      command.add(operation.receiptArgument());
       command.add(
           "--stop-signal="
               + ("proot".equals(target.environment().get("DSHA_RUNTIME_ENGINE"))
@@ -90,19 +93,71 @@ final class IsolatedInstallProcess extends Process implements AutoCloseable, Own
               android.os.Process.myPid(),
               () -> !ProcessTermination.exited(launched),
               3000);
-      ProcessIdentity current = readIdentity(birth.pid);
-      current =
-          OwnedBirthEvidence.current(
-              birth,
-              current,
-              !ProcessTermination.exited(launched),
-              current == null ? NativeProcess.sessionId(birth.pid) : current.session);
-      if (current == null) throw new IOException("PROCESS_BIRTH_RECHECK_UNCONFIRMED");
+      // Android /proc access can be restricted by SELinux even for a child
+      // which can read /proc/self/stat. Distinguish an unreadable stat from
+      // a readable but mismatched/reused process -- the latter must fail.
+      ProcessIdentity current = null;
+      boolean procReadDenied = false, requireAuthenticatedPeer = false;
+      int kernelSid = Integer.MIN_VALUE;
+      for (int attempt = 0; attempt < 5; attempt++) {
+        if (ProcessTermination.exited(launched))
+          throw new IOException("PROCESS_BIRTH_RECHECK_UNCONFIRMED:SUPERVISOR_EXITED");
+        String stat = null;
+        try {
+          stat = Compat.readAll(new File("/proc/" + birth.pid + "/stat"));
+        } catch (IOException unavailable) {
+          procReadDenied = true;
+        }
+        if (stat != null) {
+          ProcessIdentity inspected =
+              ProcessIdentity.fromStat(stat, birth.pid, android.os.Process.myPid());
+          // Readable-but-different evidence is NOT a permission failure.
+          if (inspected == null || !birth.sameProcess(inspected)
+              || !inspected.ownsSession() || inspected.exited())
+            throw new IOException("PROCESS_BIRTH_RECHECK_UNCONFIRMED:STAT_MISMATCH");
+          current = inspected;
+          break;
+        }
+        kernelSid = NativeProcess.sessionId(birth.pid);
+        current = OwnedBirthEvidence.current(
+            birth, null, !ProcessTermination.exited(launched), kernelSid);
+        if (current != null) break;
+        if (kernelSid > 0 && kernelSid != birth.session)
+          throw new IOException("PROCESS_BIRTH_RECHECK_UNCONFIRMED:SID_MISMATCH");
+        if (!OwnedBirthEvidence.canUseKernelPeerRecheck(
+            birth, procReadDenied, kernelSid, !ProcessTermination.exited(launched)))
+          throw new IOException("PROCESS_BIRTH_RECHECK_UNCONFIRMED:SID_ERROR_"
+              + (-kernelSid));
+        if (attempt < 4) Thread.sleep(35);
+      }
+      if (current == null) {
+        // Do NOT launch on a self-reported stat alone. accept() first verifies
+        // SO_PEERCRED (kernel PID and UID) on our one-time abstract socket and
+        // confirms the signed launcher is still the live Java child. Only
+        // then does the native supervisor receive START.
+        if (!OwnedBirthEvidence.canUseKernelPeerRecheck(
+            birth, procReadDenied, kernelSid, !ProcessTermination.exited(launched)))
+          throw new IOException("PROCESS_BIRTH_RECHECK_UNCONFIRMED:NO_PEER_FALLBACK");
+        current = birth;
+        requireAuthenticatedPeer = true;
+      }
       ready = new IsolatedInstallProcess(launched, current, null, operation);
       ready.control = control;
       ready.runtimeMode = target.environment().getOrDefault("DSHA_RUNTIME_ENGINE", "UNKNOWN");
       control.accept(current, () -> !ProcessTermination.exited(launched));
+      // Set the alternate inspection mode ONLY after the kernel has verified
+      // the live peer and the native control handshake completed.
+      ready.kernelPeerBirth = requireAuthenticatedPeer;
       accepted = true;
+      if (requireAuthenticatedPeer) {
+        try {
+          RuntimeHostPorts.fromOwner(context.getApplicationContext()).record(
+              "OWNED_BIRTH_PEER_VERIFIED",
+              "parent_proc_denied; peer_pid_uid_verified; sid_errno=" + (-kernelSid));
+        } catch (RuntimeException diagnosticsUnavailable) {
+          // Diagnostics must not invalidate an already authenticated START.
+        }
+      }
       return ready;
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
@@ -176,6 +231,15 @@ final class IsolatedInstallProcess extends Process implements AutoCloseable, Own
 
   void requireCurrentBirth() throws IOException {
     ProcessIdentity current = readIdentity(identity.pid);
+    if (current == null && kernelPeerBirth && control != null
+        && !ProcessTermination.exited(supervisor)) {
+      // The original supervised process is still alive: its PID cannot have
+      // been recycled. A kernel-verified SO_PEERCRED bound it to this control
+      // socket BEFORE START. Never permit this branch for a visible mismatch.
+      int sid = NativeProcess.sessionId(identity.pid);
+      if (sid == identity.session || OwnedBirthEvidence.canUseKernelPeerRecheck(
+          identity, true, sid, true)) return;
+    }
     if (current == null
         && control != null
         && !ProcessTermination.exited(supervisor)

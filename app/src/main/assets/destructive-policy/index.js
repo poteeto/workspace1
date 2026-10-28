@@ -3,6 +3,21 @@ import { classifyCommand } from './destructive.js';
 import { resolveEffectiveWorkdir } from './workdir.js';
 import { statSync, readFileSync } from 'node:fs';
 import { posix } from 'node:path';
+import { createHash } from 'node:crypto';
+// Java 已按签名 APK 的 native lock 核验。仅识别同一个已加载的引擎库；
+// 不将任意 LD_PRELOAD、额外库或工作区里的同名文件视为可信启动项。
+export function verifiedEnginePreload(env, { platform=process.platform, arch=process.arch, read=readFileSync, stat=statSync }={}) {
+  const library=env.BXROOT_LIB_PATH, digest=env.DSHA_BXROOT_RUNTIME_SHA256;
+  if (platform!=='linux' || arch!=='arm64' || env.DSHA_ANDROID_RUNTIME!=='1' || env.DSHA_BXROOT_STRICT_EXEC!=='1'
+      || typeof library!=='string' || !/^\/data\/app\/(?:[^/\s]+\/)*com\.dsh\.client-[^/\s]+\/lib\/arm64\/libbxroot-runtime\.so$/.test(library)
+      || library.split('/').some(part=>part==='.'||part==='..') || !/^[a-f0-9]{64}$/.test(digest||'') || env.LD_PRELOAD!==library) return null;
+  try {
+    if (!stat(library).isFile() || createHash('sha256').update(read(library)).digest('hex')!==digest) return null;
+    const mapped=String(read('/proc/self/maps','utf8')).split('\n').some(line=>line.trim().split(/\s+/).slice(5).join(' ')===library);
+    return mapped ? library : null;
+  } catch { return null; }
+}
+const enginePreload=verifiedEnginePreload(process.env);
 const runtimes = new WeakMap(), executions = new WeakMap();
 const encoded = value => JSON.stringify(value);
 const envFacts = value => Object.entries(value).sort(([a],[b]) => a.localeCompare(b));
@@ -63,7 +78,7 @@ export async function prepareOperation(runtime, exec) {
   const base=policy?.workspaceRoot ?? record.cwd, explicit=exec.arguments?.workdir;
   // Matches the locked rc2 Bash resolveWorkdir(), including executor-default undefined.
   record.actualWorkdir=explicit===undefined?base:base!==undefined&&!posix.isAbsolute(explicit)?base+'/'+explicit:explicit;
-  const analysis = classifyCommand(exec.arguments?.command, { cwd: record.workdir.dir, cwdKnown: record.workdir.exact, env: { ...process.env, ...record.environment }, probe: path => { try { const s=statSync(path); return s.isDirectory()?'dir':s.isFile()?'file':'other'; } catch(error) { return ['ENOENT','ENOTDIR'].includes(error.code)?'missing':'unknown'; } }, sizeProbe: path => statSync(path).size, readFile: path => { const s=statSync(path); return s.isFile()&&s.size<=65536?readFileSync(path,'utf8'):null; } });
+  const analysis = classifyCommand(exec.arguments?.command, { cwd: record.workdir.dir, cwdKnown: record.workdir.exact, env: { ...process.env, ...record.environment }, trustedEnginePreload:enginePreload, probe: path => { try { const s=statSync(path); return s.isDirectory()?'dir':s.isFile()?'file':'other'; } catch(error) { return ['ENOENT','ENOTDIR'].includes(error.code)?'missing':'unknown'; } }, sizeProbe: path => statSync(path).size, readFile: path => { const s=statSync(path); return s.isFile()&&s.size<=65536?readFileSync(path,'utf8'):null; } });
   record.analysis = analysis;
   const facts = encoded([record.name, exec.arguments, record.workdir, record.actualWorkdir, envFacts(record.environment)]);
   record.facts = facts;

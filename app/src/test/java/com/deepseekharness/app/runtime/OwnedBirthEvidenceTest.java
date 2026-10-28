@@ -30,6 +30,25 @@ public class OwnedBirthEvidenceTest {
   }
 
   @Test
+  public void kernelPeerRecheckIsLimitedToUninspectableOwnChild() {
+    var valid = identity(7, 123);
+    assertTrue(OwnedBirthEvidence.canUseKernelPeerRecheck(valid, true, -1, true));
+    assertTrue(OwnedBirthEvidence.canUseKernelPeerRecheck(valid, true, -13, true));
+    for (int errno : new int[] {-3, -22, -2, 0, 124, 123}) {
+      assertFalse("must reject non-permission case " + errno,
+          OwnedBirthEvidence.canUseKernelPeerRecheck(valid, true, errno, true));
+    }
+    assertFalse(OwnedBirthEvidence.canUseKernelPeerRecheck(valid, false, -1, true));
+    assertFalse(OwnedBirthEvidence.canUseKernelPeerRecheck(valid, true, -1, false));
+    assertFalse(OwnedBirthEvidence.canUseKernelPeerRecheck(identity(7, 124), true, -1, true));
+    assertFalse(OwnedBirthEvidence.canUseKernelPeerRecheck(null, true, -1, true));
+    // Only the kernel local-socket peer, never the stated PID, authorizes START.
+    assertTrue(OwnedBirthEvidence.peer(valid, valid.pid, 10000, 10000, true));
+    assertFalse(OwnedBirthEvidence.peer(valid, valid.pid + 1, 10000, 10000, true));
+    assertFalse(OwnedBirthEvidence.peer(valid, valid.pid, 10001, 10000, true));
+  }
+
+  @Test
   public void inspectedReusedBirthAndIncorrectSessionCannotUseDeniedFallback() {
     var born = identity(7, 123);
     assertNull(OwnedBirthEvidence.current(born, identity(8, 123), true, 123));

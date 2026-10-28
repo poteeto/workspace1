@@ -1,0 +1,33 @@
+name: Migrate validated DSHA runtime patch recipes
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths: [.github/workflows/migrate-dsh-patches.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - name: Install pinned upstream DSH packages
+        working-directory: tools/dsh-runtime
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Fail if mandatory patch hooks changed
+        run: python3 tools/audit-dsh-patches.py
+      - name: Retarget only matching active patch receipts
+        run: python3 tools/migrate-dsh-patch-versions.py
+      - name: Commit reviewed version receipts
+        run: |
+          set -euo pipefail
+          git add app/src/main/assets/*-patch.json
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Retarget DSH rc2-compatible Android patch receipts"
+          git push origin HEAD:upgrade/dsh-0.2.1-rc.2

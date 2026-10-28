@@ -86,7 +86,8 @@ public abstract class PictureInPictureActivity extends AppCompatActivity {
       };
   private final SharedPreferences.OnSharedPreferenceChangeListener picturePreferenceListener =
       (prefs, key) -> {
-        if (Constants.KEY_PICTURE_IN_PICTURE_LAYOUT.equals(key)) refreshPictureInPicture();
+        if (Constants.KEY_PICTURE_IN_PICTURE_LAYOUT.equals(key)
+            || Constants.KEY_PICTURE_IN_PICTURE_AUTO_ENTER.equals(key)) refreshPictureInPicture();
       };
 
   @androidx.annotation.ChecksSdkIntAtLeast(api = 26)
@@ -231,9 +232,9 @@ public abstract class PictureInPictureActivity extends AppCompatActivity {
     }
     String pictureLayout = config.getPictureInPictureLayout();
     pictureFrame.setPictureLayout(pictureLayout);
-    // Android 12+ 使用系统自动进入；是否允许完全由系统应用级画中画设置决定。
+    // 系统许可只是能力；只有用户主动开启自动小窗才随离开应用进入。
     boolean systemAllowed = allowed(this);
-    boolean autoEnter = !showing(this) && mayEnter();
+    boolean autoEnter = config.isPictureInPictureAutoEnter() && !showing(this) && mayEnter();
     int[] viewport = pictureFrame.pictureViewport();
     if (!pictureParamsApplied
         || viewport[0] != appliedViewportWidth
@@ -384,6 +385,7 @@ public abstract class PictureInPictureActivity extends AppCompatActivity {
   @Override
   protected void onUserLeaveHint() {
     super.onUserLeaveHint();
+    if (!new ConfigStore(this).isPictureInPictureAutoEnter()) return;
     // Android 8–11 没有 auto-enter；回桌面或切换应用时在这里进入。
     if (Build.VERSION.SDK_INT >= 26 && Build.VERSION.SDK_INT < 31) enterIfAllowed();
     else if (pictureFrame != null && mayEnter()) pictureFrame.freezeViewport();
@@ -391,7 +393,9 @@ public abstract class PictureInPictureActivity extends AppCompatActivity {
 
   @Override
   public boolean onPictureInPictureRequested() {
-    return Build.VERSION.SDK_INT >= 26 && enterIfAllowed();
+    return Build.VERSION.SDK_INT >= 26
+        && new ConfigStore(this).isPictureInPictureAutoEnter()
+        && enterIfAllowed();
   }
 
   @Override

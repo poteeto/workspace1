@@ -85,6 +85,14 @@ public final class MaintenanceFixtureInstrumentation extends Instrumentation {
       }
       FixtureHarness harness = new FixtureHarness(fixture);
       result.putString("fixture", fixture.base.getAbsolutePath());
+      if ("overlay".equals(args.getString("case"))) {
+        overlayUpgrade(harness);
+        result.putString("status", "PASS");
+        result.putString(
+            "stream", "ANDROID_OLD_HISTORY_MANAGED_OVERLAY_ACTIVATION_PASS " + assertions);
+        finish(Activity.RESULT_OK, result);
+        return;
+      }
       check(
           !harness
               .proot()
@@ -368,6 +376,7 @@ public final class MaintenanceFixtureInstrumentation extends Instrumentation {
           "stream", "PASS " + assertions + " assertions；fixture（默认完成后清理）：" + fixture.base);
       finish(Activity.RESULT_OK, result);
     } catch (Throwable error) {
+      android.util.Log.e("DSHA_MAINTENANCE_FIXTURE", "Isolated fixture failed", error);
       result.putString("status", "FAIL");
       result.putInt("assertions", assertions);
       result.putString(
@@ -672,6 +681,154 @@ public final class MaintenanceFixtureInstrumentation extends Instrumentation {
             && !BackupManager.isEnvironmentTaskBusy()
             && !RuntimeTasks.isBusy(),
         "首次安装完成后日志已提交、所有任务锁释放");
+  }
+
+  /** Real APK staging/transaction and production admission, with a fixture health callback only. */
+  private void overlayUpgrade(FixtureHarness harness) throws Exception {
+    var fs = new AndroidBackupFileSystem();
+    File files = fixture.files, root = harness.proot().getRootfsDir();
+    var expected = harness.proot().expectedRuntimeDescriptor();
+    var value = expected.json();
+    var inputs = new java.util.LinkedHashMap<String, Object>();
+    for (var row : ((java.util.Map<?, ?>) value.get("inputs")).entrySet())
+      inputs.put((String) row.getKey(), row.getValue());
+    inputs.put("workspace-model-ui-patch.json", "0".repeat(64));
+    value.put("inputs", inputs);
+    value.put("runtimeId", com.deepseekharness.app.backup.RuntimeDescriptor.calculateId(value));
+    var previous = new com.deepseekharness.app.backup.RuntimeDescriptor(value);
+    check(previous.sameBundleOverlay(expected), "同后台界面更新身份明确");
+    File linux = root.getParentFile();
+    if (!new File(root, "root").mkdirs()) throw new IOException("FIXTURE_ROOT");
+    // Minimal ARM ELF fixture for the real installation classifier; never executed.
+    byte[] elf = new byte[160];
+    var header = java.nio.ByteBuffer.wrap(elf).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+    header.putInt(0, 0x464c457f);
+    elf[4] = 2;
+    elf[5] = 1;
+    header.putShort(18, (short) 183);
+    header.putLong(32, 64);
+    header.putShort(54, (short) 56);
+    header.putShort(56, (short) 1);
+    header.putInt(64, 3);
+    header.putLong(72, 120);
+    byte[] interpreter =
+        "/lib/ld-linux-aarch64.so.1\0".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+    header.putLong(96, interpreter.length);
+    System.arraycopy(interpreter, 0, elf, 120, interpreter.length);
+    File bash = new File(root, "bin/bash");
+    fs.parents(root, "bin/bash");
+    try (var out = fs.create(bash)) {
+      out.write(elf);
+    }
+    android.system.Os.chmod(bash.getPath(), 0700);
+    File loader = new File(root, "lib/ld-linux-aarch64.so.1");
+    fs.parents(root, "lib/ld-linux-aarch64.so.1");
+    Compat.write(loader, "fixture-loader");
+    android.system.Os.chmod(loader.getPath(), 0700);
+    Compat.write(new File(linux, ".offline-extracted"), "fixture-installed");
+    Compat.write(new File(linux, ".offline-identity"), harness.proot().environmentIdentity());
+    fs.atomic(
+        linux,
+        ".runtime-descriptor.json",
+        com.deepseekharness.app.backup.BackupJson.write(value, 2 * 1024 * 1024));
+    File health = new File(files, "runtime-health");
+    fs.directory(health);
+    fs.atomic(
+        health,
+        previous.id() + ".json",
+        com.deepseekharness.app.backup.BackupJson.write(overlayHealth(previous), 512 * 1024));
+    File personal = new File(root, "root/.dsh/sessions/overlay-personal-sentinel");
+    fs.parents(root, "root/.dsh/sessions/overlay-personal-sentinel");
+    Compat.write(personal, "KEEP_CONVERSATION_AND_PROJECT\n");
+    String id = "8d79deee-7522-4f90-a1c0-719481263a5d";
+    File entry = new File(files, "bounded-guest-active/" + id);
+    fs.parents(files, "bounded-guest-active/" + id);
+    fs.directory(entry);
+    fs.atomic(entry, "intent", (id + "\n").getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+    byte[] identity =
+        (id + "\n19743 188183196 19743\n").getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+    fs.atomic(entry, "identity", identity);
+    fs.atomic(
+        entry,
+        "protocol",
+        "DSHA_OWNED_TREE_V2\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+    long apkTime =
+        fixture.getPackageManager().getPackageInfo(fixture.getPackageName(), 0).lastUpdateTime;
+    check(new File(entry, "identity").setLastModified(apkTime - 60_000), "旧记录早于覆盖安装");
+    check(EnvironmentAccess.sameBundleOverlay(harness), "实际安装分类允许同后台受管更新");
+    check(!EnvironmentAccess.runtimeLatest(harness), "旧界面尚未启用新版");
+    check(EnvironmentAccess.requiresMaintenanceBeforeStart(harness), "旧记录不再悄悄跳过自动更新");
+    boolean blocked = false;
+    try {
+      MaintenanceCoordinator.exclusive(harness, () -> "MUST_NOT_RESTORE");
+    } catch (IOException expectedBarrier) {
+      blocked = true;
+    }
+    check(blocked, "原数据恢复与重建屏障依然拒绝未知历史");
+    MaintenanceCoordinator.updateManagedRuntime(
+        harness,
+        () -> {
+          var transaction =
+              com.deepseekharness.app.backup.ManagedRuntimeTransaction.create(fs, files);
+          var control = new com.deepseekharness.app.backup.BackupControl(null);
+          var paths = harness.proot().stageManagedRuntime(transaction.stage(), this::report);
+          MaintenanceCoordinator.confirmUpdateHistory(harness);
+          transaction.prepare(paths, expected, previous, overlayHealth(previous), control);
+          transaction.commit(
+              control,
+              () -> {
+                String model =
+                    Compat.readAll(
+                        new File(
+                            root,
+                            "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-client-ui-model-selection/lib/client.js"));
+                check(model.contains("data-dsha-workspace-controls"), "真实 APK 新模型面板已切换到活动目录");
+                check(model.contains("dsha-ws-effort"), "新思考强度界面已启用");
+                var proof = overlayHealth(expected);
+                fs.atomic(
+                    health,
+                    expected.id() + ".json",
+                    com.deepseekharness.app.backup.BackupJson.write(proof, 512 * 1024));
+                return proof;
+              },
+              () -> !RuntimeTasks.hasOtherTasks());
+          return null;
+        });
+    check(EnvironmentAccess.runtimeLatest(harness), "活动描述符为当前 APK");
+    check(!EnvironmentAccess.requiresMaintenanceBeforeStart(harness), "启用后不再重复更新");
+    check("KEEP_CONVERSATION_AND_PROJECT\n".equals(Compat.readAll(personal)), "个人会话原字节保留");
+    check(
+        java.util.Arrays.equals(identity, fs.small(new File(entry, "identity"), 128)),
+        "旧未知运行记录原字节保留");
+    check(
+        !new File(entry, "tree-empty").exists()
+            && !new File(files, "bounded-guest-completed/" + id).exists(),
+        "没有伪造退出或任务成功证明");
+    check(
+        com.deepseekharness.app.runtime.BoundedGuestSessions.firstPending(files) != null,
+        "旧记录未冒充已恢复");
+  }
+
+  private static java.util.Map<String, Object> overlayHealth(
+      com.deepseekharness.app.backup.RuntimeDescriptor descriptor) {
+    var proof = new java.util.LinkedHashMap<String, Object>();
+    proof.put("runtimeId", descriptor.id());
+    proof.put("nonce", "1".repeat(32));
+    proof.put("port", 3080L);
+    proof.put("confirmedAt", 1L);
+    for (String key :
+        java.util.List.of(
+            "assets",
+            "nativeModules",
+            "process",
+            "authentication",
+            "localApi",
+            "renderer",
+            "dataRead",
+            "dataWrite",
+            "storageFreshReopened",
+            "processExited")) proof.put(key, true);
+    return proof;
   }
 
   /** 不解压 assets，不启动真实进程：仅用专属文件和真实 RuntimeTasks 验证维护准入边界。 */
@@ -981,16 +1138,48 @@ public final class MaintenanceFixtureInstrumentation extends Instrumentation {
     }
   }
 
-  private static final class FixtureContext extends ContextWrapper {
+  private static final class FixtureContext extends ContextWrapper
+      implements com.deepseekharness.app.runtime.RuntimeHostPorts.Owner {
     final File base, files, cache;
     final String prefix = "maintenance-fixture-" + UUID.randomUUID() + "-";
+    final com.deepseekharness.app.runtime.RuntimeHostPorts ports =
+        new com.deepseekharness.app.runtime.RuntimeHostPorts();
 
     FixtureContext(Context original) throws IOException {
       super(original);
-      base = new File(original.getCacheDir(), prefix);
+      // Android's /data/user/0 alias is itself a symlink. The production NOFOLLOW adapter
+      // expects the canonical private anchor, as do the production maintenance entry points.
+      base = new File(original.getCacheDir().getCanonicalFile(), prefix).getCanonicalFile();
       files = new File(base, "files");
       cache = new File(base, "cache");
       if (!files.mkdirs() || !cache.mkdirs()) throw new IOException("无法建立隔离 fixture");
+      ports.install(
+          new com.deepseekharness.app.runtime.RuntimeHostPorts.Provider() {
+            @Override
+            public com.deepseekharness.app.runtime.RuntimeHostPorts.Settings snapshot() {
+              return new ConfigStore(FixtureContext.this).runtimeSettingsSnapshot();
+            }
+
+            @Override
+            public void stage(String value) {
+              android.util.Log.i("DSHA_OVERLAY_FIXTURE", value);
+            }
+
+            @Override
+            public void record(String kind, String detail) {
+              android.util.Log.i("DSHA_OVERLAY_FIXTURE", kind);
+            }
+
+            @Override
+            public void failure(Throwable error) {
+              android.util.Log.e("DSHA_OVERLAY_FIXTURE", error.getClass().getSimpleName());
+            }
+          });
+    }
+
+    @Override
+    public com.deepseekharness.app.runtime.RuntimeHostPorts runtimeHostPorts() {
+      return ports;
     }
 
     @Override
@@ -1006,6 +1195,13 @@ public final class MaintenanceFixtureInstrumentation extends Instrumentation {
     @Override
     public File getCacheDir() {
       return cache;
+    }
+
+    @Override
+    public android.content.pm.ApplicationInfo getApplicationInfo() {
+      var info = new android.content.pm.ApplicationInfo(super.getApplicationInfo());
+      info.dataDir = base.getAbsolutePath();
+      return info;
     }
 
     @Override

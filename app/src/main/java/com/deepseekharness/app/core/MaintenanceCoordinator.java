@@ -58,6 +58,40 @@ public final class MaintenanceCoordinator {
     return GATE.exclusive(new AndroidPorts(controller), operation::run);
   }
 
+  public static <T> T updateManagedRuntime(HarnessController controller, Operation<T> operation)
+      throws Exception {
+    return GATE.exclusive(new AndroidPorts(controller, true), operation::run);
+  }
+
+  /** Same stop fence stays held during staging; revalidate before the managed transaction switches. */
+  static void confirmUpdateHistory(HarnessController controller) throws IOException {
+    if (!isOwner()) throw new IOException("RUNTIME_REQUIRES_MAINTENANCE");
+    confirmUpdateProcesses(controller);
+  }
+
+  private static void confirmUpdateProcesses(HarnessController controller) throws IOException {
+    if (!EnvironmentAccess.sameBundleOverlay(controller)) {
+      com.deepseekharness.app.runtime.BoundedGuestSessions.reapExited(
+          controller.context().getFilesDir());
+      return;
+    }
+    long installedAt;
+    try {
+      android.content.Context context = controller.context();
+      installedAt =
+          context.getPackageManager().getPackageInfo(context.getPackageName(), 0).lastUpdateTime;
+    } catch (android.content.pm.PackageManager.NameNotFoundException | RuntimeException missing) {
+      throw new IOException("OVERLAY_APK_INSTALL_TIME_UNAVAILABLE", missing);
+    }
+    int retained =
+        com.deepseekharness.app.runtime.BoundedGuestSessions.confirmSameBundleOverlay(
+            controller.context().getFilesDir(), installedAt);
+    if (retained > 0)
+      controller
+          .runtimeHostPorts()
+          .record("MANAGED_OVERLAY_UNKNOWN_HISTORY_RETAINED", Integer.toString(retained));
+  }
+
   /** The stop barrier is shared by manual stop, data transactions and old callers. */
   public static void stopWeb(HarnessController controller) throws Exception {
     if (Thread.holdsLock(GATE.archiveLock()))
@@ -81,9 +115,15 @@ public final class MaintenanceCoordinator {
 
   private static final class AndroidPorts implements MaintenanceGate.Ports {
     private final HarnessController controller;
+    private final boolean managedUpdate;
 
     AndroidPorts(HarnessController controller) {
+      this(controller, false);
+    }
+
+    AndroidPorts(HarnessController controller, boolean managedUpdate) {
       this.controller = controller;
+      this.managedUpdate = managedUpdate;
     }
 
     @Override
@@ -134,6 +174,11 @@ public final class MaintenanceCoordinator {
 
     @Override
     public void confirmOtherProcesses() throws IOException {
+      if (managedUpdate && EnvironmentAccess.sameBundleOverlay(controller)) {
+        if (pending(controller)) throw new IOException("RUNTIME_RECOVERY_REQUIRED");
+        confirmUpdateProcesses(controller);
+        return;
+      }
       com.deepseekharness.app.runtime.BoundedGuestSessions.reapExited(
           controller.context().getFilesDir());
     }

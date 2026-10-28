@@ -1,0 +1,74 @@
+name: Sign verified DSHA v180 release
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths: ['.github/workflows/sign-verified-v180.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: dsha-permanent-publishing-key
+  cancel-in-progress: false
+jobs:
+  sign-tested-candidate:
+    if: github.ref == 'refs/heads/upgrade/dsh-0.2.1-rc.2'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Require successful build and emulator for the exact candidate source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, urllib.request
+          base='https://api.github.com/repos/poteeto/workspace1/actions/runs/39850846202'
+          def get(suffix):
+              request=urllib.request.Request(base+suffix,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(request,timeout=30) as response:return json.load(response)
+          run=get('')
+          expected='504feb88c7edbd74089d23f0041f5b1500312db0'
+          if run['head_sha']!=expected or run['head_branch']!='upgrade/dsh-0.2.1-rc.2' or run['status']!='completed':
+              raise SystemExit('UNVERIFIED_CANDIDATE_SOURCE')
+          jobs=get('/attempts/1/jobs?per_page=100')['jobs']
+          for name in ('test-apk','android-kvm-native-v2'):
+              selected=[job for job in jobs if job['name']==name]
+              if len(selected)!=1 or selected[0]['conclusion']!='success':raise SystemExit('CANDIDATE_GATE_NOT_PASSED:'+name)
+          allowed={'tools/ci-github-sign-release.sh','tools/verify-apk-runtime-contract.py','tools/verify-signed-apk-content.py','tools/test-verify-signed-apk-content.py','.github/workflows/sign-verified-v180.yml','.github/workflows/validate-official-apk-tools.yml','.github/workflows/build-dsha-rc2-test-apk.yml','ci/release-identity.json','ci/github-signing/certificate.sha256','ci/github-signing/dsha-permanent-release.p12.gpg'}
+          changed=subprocess.check_output(['git','diff','--name-only',expected,'HEAD'],text=True).splitlines()
+          if set(changed)-allowed:raise SystemExit('APPLICATION_CHANGED_SINCE_VERIFIED_BUILD:'+repr(changed))
+          print('EXACT_V180_CANDIDATE_BUILD_JUNIT_AND_EMULATOR_VERIFIED',expected)
+          PY
+      - name: Test signing identity and all application-content gates
+        run: |
+          bash -n tools/ci-github-sign-release.sh
+          python3 tools/test-github-signing-state.py -v
+          python3 tools/test-verify-official-apk.py -v
+          python3 tools/test-verify-signed-apk-content.py -v
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+        with: {packages: platform-tools}
+      - name: Prepare exact APK signing tools
+        run: sdkmanager "build-tools;$(python3 tools/ci-toolchain.py --field buildTools)"
+      - uses: actions/download-artifact@v4
+        with:
+          name: DSHA-v180-STANDARD-UNSIGNED-RELEASE-CANDIDATE
+          path: unsigned-release
+          run-id: 39850846202
+          github-token: ${{ github.token }}
+      - name: Verify exact tested candidate bytes
+        run: echo 'b34b9a7ada856e0efbed81b9de334c5e7f1ffc4cc3ab0c0d3e94e253d2b41cfe  unsigned-release/app-standard-release-unsigned.apk' | sha256sum -c -
+      - name: Generate or reuse fixed GitHub key and sign verified candidate
+        env:
+          DSHA_SIGNING_MASTER_PASSWORD: ${{ secrets.DSHA_SIGNING_MASTER_PASSWORD }}
+        run: bash tools/ci-github-sign-release.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DSHA-v180-GITHUB-KEY-SIGNED-STANDARD-APK
+          path: verified-signed-release/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30

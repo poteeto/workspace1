@@ -63,9 +63,10 @@ def source_files(archive: Path):
     return found
 
 
-def build(archive: Path, assets: Path, dsh_version: str):
+def build(archive: Path, assets: Path, dsh_version: str, recipe_assets: Path | None = None):
+    recipe_assets = recipe_assets or assets
     raw = source_files(archive)
-    spec = json.loads((assets / 'pdf-compat-patch.json').read_text(encoding='utf8'))
+    spec = json.loads((recipe_assets / 'pdf-compat-patch.json').read_text(encoding='utf8'))
     if spec.get('dshVersion') != dsh_version \
             or spec.get('module') != TARGETS['client.pdf.js'].removeprefix(PREFIX) \
             or spec.get('resourceModule') != TARGETS['client-resources.js'].removeprefix(PREFIX) \
@@ -84,7 +85,7 @@ def build(archive: Path, assets: Path, dsh_version: str):
     pdf = exact(pdf, spec['workerBefore'], 'new Blob([' + json.dumps(compatibility + '\n', ensure_ascii=False)
                 + ', _dsh_pdf_worker_default,')
     resources = exact(raw['client-resources.js'].decode('utf8'), spec['resourceBefore'], spec['resourceAfter'])
-    language = json.loads((assets / 'language-patch.json').read_text(encoding='utf8'))
+    language = json.loads((recipe_assets / 'language-patch.json').read_text(encoding='utf8'))
     if language.get('dshVersion') != dsh_version \
             or language.get('module') != TARGETS['client-locale.js'].removeprefix(PREFIX) \
             or not isinstance(language.get('patches'), list) or len(language['patches']) != 3 \

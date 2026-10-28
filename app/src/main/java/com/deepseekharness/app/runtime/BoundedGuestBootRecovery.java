@@ -16,6 +16,39 @@ final class BoundedGuestBootRecovery {
   private static final int LIMIT = 8192;
   private static final List<String> MEMBERS = List.of("identity", "intent", "protocol");
 
+  /** 真实 native 回执晚于恢复检查点到达时，归档检查点，不能留下永久的假 pending。 */
+  static void supersedeWithNativeProof(BackupFileSystem fs, File files, File entry, String id)
+      throws IOException {
+    File root = fs.child(files, HOME);
+    if (fs.stat(root).type.equals("MISSING")) return;
+    File journal = fs.child(root, id);
+    if (fs.stat(journal).type.equals("MISSING")) return;
+    validateJournal(fs, journal);
+    if (!fs.stat(fs.child(journal, "original")).type.equals("MISSING")
+        || !fs.stat(fs.child(journal, "closed")).type.equals("MISSING"))
+      throw new IOException("BOUNDED_GUEST_BOOT_LOCATION_CONFLICT");
+    Checkpoint checkpoint = checkpoint(fs, journal, id);
+    if (!Arrays.equals(checkpoint.snapshot, capture(fs, entry, id, true)))
+      throw new IOException("BOUNDED_GUEST_BOOT_ORIGINAL_CHANGED");
+    String birth =
+        new String(fs.small(fs.child(entry, "identity"), 128), StandardCharsets.US_ASCII);
+    String tree =
+        new String(fs.small(fs.child(entry, "tree-empty"), 192), StandardCharsets.US_ASCII);
+    if (!BoundedGuestSessions.validTree(birth, tree))
+      throw new IOException("OWNED_TREE_RECEIPT_MISSING");
+    File archived = fs.child(files, "bounded-guest-boot-superseded");
+    directory(fs, archived);
+    File target = fs.child(archived, id);
+    if (!fs.stat(target).type.equals("MISSING"))
+      throw new IOException("BOUNDED_GUEST_BOOT_LOCATION_CONFLICT");
+    // 原记录仍在 active，且 tree-empty 已落盘；任意中断后可走正常 native 收尾。
+    // 此处不产生重启证明或任务成功回执，旧检查点原字节保留。
+    fs.move(journal, target);
+    fs.syncDirectory(root);
+    fs.syncDirectory(archived);
+    fs.syncDirectory(files);
+  }
+
   interface BootSource {
     String read() throws IOException;
   }
@@ -25,6 +58,28 @@ final class BoundedGuestBootRecovery {
   }
 
   private record Checkpoint(String id, String boot, String digest, byte[] snapshot) {}
+
+  /** Read the preserved ordinary record without publishing a boot/exit/completion receipt. */
+  static File overlayOriginal(BackupFileSystem fs, File files, String id) throws IOException {
+    File journal = journal(fs, files, id);
+    validateJournal(fs, journal);
+    if (!fs.stat(fs.child(journal, "closed")).type.equals("MISSING"))
+      throw new IOException("OVERLAY_HISTORY_ALREADY_CLOSED");
+    Checkpoint checkpoint = checkpoint(fs, journal, id);
+    File active = active(fs, files, id), original = fs.child(journal, "original");
+    boolean hasActive = !fs.stat(active).type.equals("MISSING");
+    boolean hasOriginal = !fs.stat(original).type.equals("MISSING");
+    if (hasActive == hasOriginal) throw new IOException("BOUNDED_GUEST_BOOT_LOCATION_CONFLICT");
+    File source = hasActive ? active : original;
+    if (!Arrays.equals(checkpoint.snapshot, capture(fs, source, id)))
+      throw new IOException("BOUNDED_GUEST_BOOT_ORIGINAL_CHANGED");
+    return source;
+  }
+
+  static void requireOrdinaryOverlayRecord(BackupFileSystem fs, File entry, String id)
+      throws IOException {
+    capture(fs, entry, id);
+  }
 
   private BoundedGuestBootRecovery() {}
 
@@ -216,9 +271,15 @@ final class BoundedGuestBootRecovery {
   }
 
   private static byte[] capture(BackupFileSystem fs, File entry, String id) throws IOException {
+    return capture(fs, entry, id, false);
+  }
+
+  private static byte[] capture(BackupFileSystem fs, File entry, String id, boolean nativeClosed)
+      throws IOException {
+    Set<String> expected = new HashSet<>(MEMBERS);
+    if (nativeClosed) expected.add("tree-empty");
     BackupFileSystem.Node directory = fs.stat(entry);
-    if (!directory.type.equals("DIRECTORY")
-        || !new HashSet<>(fs.list(entry)).equals(new HashSet<>(MEMBERS)))
+    if (!directory.type.equals("DIRECTORY") || !new HashSet<>(fs.list(entry)).equals(expected))
       throw new IOException("BOUNDED_GUEST_BOOT_INELIGIBLE_MEMBERS");
     Map<String, byte[]> values = new TreeMap<>();
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -254,8 +315,7 @@ final class BoundedGuestBootRecovery {
     } catch (NumberFormatException invalid) {
       throw new IOException("BOUNDED_GUEST_BOOT_RECORD_INVALID", invalid);
     }
-    if (!directory.same(fs.stat(entry))
-        || !new HashSet<>(fs.list(entry)).equals(new HashSet<>(MEMBERS)))
+    if (!directory.same(fs.stat(entry)) || !new HashSet<>(fs.list(entry)).equals(expected))
       throw new IOException("BOUNDED_GUEST_BOOT_RECORD_CHANGED");
     return bytes.toByteArray();
   }

@@ -1,0 +1,93 @@
+name: Real DSH Web boot from packaged APK on ARM64
+on:
+  push:
+    branches: ['upgrade/dsh-0.2.1-rc.2']
+    paths:
+      - .github/workflows/real-dsh-boot.yml
+      - tools/smoke-dsh-web.mjs
+      - tools/smoke-dsh-owned-web.py
+      - tools/native-session/session-launcher.c
+      - tools/test-native-session-handshake.py
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: real-dsh-live-boot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  boot-shipped-dsh:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Assert native ARM64 Linux runner
+        run: |
+          test "$(uname -m)" = "aarch64"
+          node -p 'if (process.arch !== "arm64") process.exit(1); process.arch'
+      - name: Download actual previously built v176 Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: DSHA-0.2.1-rc2-ARM64-SLIM-DEBUG-v176-COLD-QUALIFIED
+          run-id: 39635896862
+          github-token: ${{ github.token }}
+          path: packaged
+      - name: Extract exact DSH runtime payload (not npm source)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, pathlib, zipfile
+          apks=list(pathlib.Path('packaged').rglob('*.apk'))
+          assert len(apks)==1,('EXPECTED_ONE_V176_APK',apks)
+          apk=apks[0]
+          sha=hashlib.sha256(apk.read_bytes()).hexdigest()
+          expected='c2999e5b5da9d8c26e4bee3ca37c5fdebdd7be5f8d7297e9c85ce5e7952db0a6'
+          assert sha==expected,('APK_SHA256_CHANGED',sha)
+          with zipfile.ZipFile(apk) as z:
+              desc=json.loads(z.read('assets/runtime-descriptor.json'))
+              assert desc['dshVersion']=='0.2.1-rc.2'
+              source=z.open('assets/dsh-runtime.bin')
+              with open('shipped-dsh-runtime.bin','wb') as dest:
+                  for part in iter(lambda:source.read(1048576),b''):
+                      dest.write(part)
+          print('APK_INPUT_ATTESTED',apk.stat().st_size,sha)
+          print('SHIPPED_DSH_ARCHIVE',pathlib.Path('shipped-dsh-runtime.bin').stat().st_size)
+          PY
+          mkdir -p extracted
+          tar -xzf shipped-dsh-runtime.bin -C extracted --no-same-owner
+          test -f extracted/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js
+          node -p "'PACKAGED_DSH_VERSION ' + require('./extracted/usr/local/lib/node_modules/@deepseek-ai/dsh/package.json').version"
+      - name: Really launch packaged DSH web server and fetch its HTML and assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 180s node tools/smoke-dsh-web.mjs \
+            "$PWD/extracted/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js"
+      - name: Compile original signed session C supervisor on native ARM64
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -D_GNU_SOURCE -O2 -fPIE -pie -Wall -Wextra \
+            tools/native-session/session-launcher.c -o "$RUNNER_TEMP/dsha-session-linux-arm64"
+          file "$RUNNER_TEMP/dsha-session-linux-arm64"
+      - name: Test actual kernel self-stat birth handshake and control protocol
+        shell: bash
+        run: python3 tools/test-native-session-handshake.py
+      - name: Launch real packaged DSH through native session supervisor, prove /proc identity and stop
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 110s python3 tools/smoke-dsh-owned-web.py \
+            --launcher "$RUNNER_TEMP/dsha-session-linux-arm64" \
+            --dsh-entry "$PWD/extracted/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js"
+      - name: Document coverage boundary
+        if: always()
+        run: |
+          echo 'Linux ARM64 real DSH process + HTTP covered. Android Bionic/BXROOT native launcher and Android UI still require device/emulator validation.'

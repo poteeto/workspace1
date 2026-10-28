@@ -1,0 +1,35 @@
+# GitHub 固定签名与安装包下载
+
+当前发布流程：v183（0.2.33）验证版，分支 upgrade/dsh-0.2.1-rc.2；沿用 v180 开始使用的固定签名。
+
+## 唯一发布身份
+
+用户本轮授权首次生成一把新的 RSA-4096 / PKCS12 发布密钥。GitHub Actions 生成私钥，用仓库 Secret DSHA_SIGNING_MASTER_PASSWORD 加密，密文保存到 ci/github-signing/dsha-permanent-release.p12.gpg；公开指纹保存到 certificate.sha256 和 ci/release-identity.json。密码不进入源码、日志或 artifact。本地私密备份在仓库目录之外，需另行妥善保管。
+
+身份状态从 bootstrap-authorized 只转换一次为 active。active 状态下密文、指纹或密码丢失均停止发布，不重新生成密钥。不同运行的签名任务串行；即使旧构建稍后执行，也从分支读取已持久保存的签名身份。只有密文提交成功后才上传可安装的 APK。
+
+历史 E7E3 与 52c174… 都不是此次新身份。首次成功后的权威指纹以 ci/github-signing/certificate.sha256 为准，后续必须复用。不要再次把状态改回 bootstrap-authorized。
+
+## 下载
+
+用户要求以后更新完成后以 GitHub Releases 为交付入口，提供签名 APK、SHA256 校验文件和验证记录；回复优先提供 GitHub 下载链接。本机文件仅作临时校验副本，源码推送和 Actions artifact 都不能单独作为交付完成。
+
+[v183 验证版 Release](https://github.com/poteeto/workspace1/releases/tag/v0.2.33) 提供 `dsha-0.2.33.apk`、对应 `.sha256` 和 `verification.json`。自动小窗改为默认关闭的独立开关，首页启动日志移到单独页面；保留普通清后台后重开修复，v180–v182 可同签名覆盖。验证版标为 prerelease，并明确尚未在原 realme 手机验收。
+
+工作流 .github/workflows/build-dsha-rc2-test-apk.yml 构建 Standard 非调试候选、验证运行时、双版单测和 Release Lint，并用同次 Debug APK 检查 Android 15 模拟器中的原生进程协议、断线恢复和连续三次应用重开。签名任务随后签署同次 Release 候选，检查证书、版本和内容，再上传 DSHA-v183-GITHUB-KEY-SIGNED-STANDARD-APK，作为 Release 的输入。`publish-verified-dsha.yml` 按 `ci/verified-release.json` 核对完整构建与相同 APK 字节，在 GitHub 内上传三个附件，核对上传摘要后发布；已有同名不同内容时停止，不直接覆盖。Artifact 保留 30 天，下载需登录 GitHub；未签名候选和 Debug 包不能代替签名发布包。
+
+模拟器的原生进程协议检查不等于 Release APK 的真实手机全功能验收。
+
+## 旧版本维护卡住
+
+用户随后明确复现为普通打开、清后台、再打开，并未执行维护。v182 将普通运行历史与文件维护分开；旧未知记录继续保留供文件替换停止屏障核验，但不再阻止健康环境正常使用。旧失败恢复页面可在无真正维护时进入主界面，详见 [v182 修复与验证范围](releases/v0.2.32-build182-ordinary-reopen.md)。
+
+用户提供的 v178 / realme RMX5090 / Android 16 日志显示：普通 V2 会话残留 identity、intent、protocol，缺少 tree-empty；试运行本身已闭合。缺少回执不能当作仍存活，也不能当作全部退出。
+
+v180 允许已进入 uncertain 状态的当前拥有者建立持久恢复检查点，但仍以真实重启作为未知进程树的退出证明，后续日志证实恢复体验并未解决。v181 将证明改由原生监督器直接持久保存，补齐 START 前后断线的收尾，见 [v181 修复与验证记录](releases/v0.2.31-build181-recovery.md)。旧 v180 已经缺失的证明不能追溯伪造，不能把新回归通过写成旧手机记录已经解除。个人数据和原记录继续保留。
+
+界面现在展示具体阻塞域与记录号；导出的错误日志补充维护任务最后阶段、恢复失败详情及进程记录状态，避免旧日志只有 failureRecorded=false 而看不到维护失败。
+
+## 签名迁移
+
+新证书无法直接覆盖手机上不同签名的旧包。请先保留旧应用并导出可验证的数据副本；没有备份不要卸载或清除数据。新签名连续发布使用同一密钥和递增 versionCode。此流程不承诺能对旧签名原地覆盖，也不把代码测试视为旧数据恢复验收。
